@@ -2,7 +2,7 @@
 
 # --------------------------- default config
 
-# setup it into /etc/vanbelle/check-health.conf
+# setup it into /etc/host-tools/check-health.conf
 
 DISKLIMIT=75
 BADSECTORLIMIT=0
@@ -15,7 +15,7 @@ WEBHOOK=""
 # ----------------------------------------
 
 
-CONFIG="/etc/vanbelle/check-health.conf"
+CONFIG="/etc/host-tools/check-health.conf"
 ALARM=0
 
 # keep original language to normalize script output

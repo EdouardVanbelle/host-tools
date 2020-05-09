@@ -1,0 +1,28 @@
+#!/bin/bash
+
+TARGET=/root/scripts
+
+die() {
+	echo "$@"
+	exit 1
+}
+
+
+SOURCE=$( readlink -f $(dirname $0)"/.." )
+
+echo $SOURCE
+
+test -e $SOURCE/bin/BACKUP.to-local || die "unable to find source"
+
+if [ "$SOURCE" == "$TARGET" ] 
+then
+	die "do not run this script from $TARGET"
+fi
+
+test -e $TARGET || mkdir $TARGET
+cp -a -r -f $SOURCE/bin/* $TARGET
+
+touch $TARGET/DO-NOT-EDIT
+
+# print if any change
+#cd $TARGET; git --git-dir=$SOURCE/../.git status

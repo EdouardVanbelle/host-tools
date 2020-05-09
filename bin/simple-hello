@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CONFIG="/etc/vanbelle/check-health.conf"
+CONFIG="/etc/host-tools/check-health.conf"
 
 load_config() {
 
