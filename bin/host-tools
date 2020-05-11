@@ -27,6 +27,8 @@ ALARM=0
 # keep original language to normalize script output
 LANG=C
 
+# ---------------------------------------- helpers
+
 urlencode() {
     # urlencode <string>
     local old_lc_collate=$LC_COLLATE
@@ -76,11 +78,13 @@ load_config() {
 
 }
 
+# ---------------------------------------- checks
+
 check_root_sshkeys() {
 
 	local AUTHORIZED_KEY="/root/.ssh/authorized_keys2"
 
-	PREV_IFS=$IFS
+       local PREV_IFS=$IFS
 	IFS="" 
 	for KEY in ${ROOT_KEYS[@]}
 	do
@@ -107,6 +111,13 @@ check_security_upgrade() {
 
 	echo checking security package to upgrade
 
+       if ! which apt-get >/dev/null
+       then
+               echo "apt-get not found, I only know debian systems [ignoring test]"
+               return
+       fi
+
+
 	apt-get update >/tmp/security-update.list 2>&1
 	if grep -q '^[WE]:' /tmp/security-update.list 
 	then
@@ -132,6 +143,12 @@ check_services() {
 
 	echo "checking systemd services status"
 
+       if ! which systemctl >/dev/null
+       then
+               echo "systemctl not found (system is not running using systemd ?) [ignoring test]"
+               return
+       fi
+
 	# example of output
 	# networking.service loaded    failed failed Raise network interfaces
 	# ureadahead.service not-found failed failed ureadahead.service
@@ -144,8 +161,23 @@ check_services() {
 
 check_disk_sectors() {
 
+       if ! which smartctl >/dev/null
+       then
+               echo "smartctl not installed (fix: apt-get install smartmontools) [ignoring test]"
+               return
+       fi
+
+       if which lshw >/dev/null
+       then
+               # disk list
+               DISKS=$(lshw -class disk -short -quiet | tail -n +3 | awk '{ print $2; }')
+       else
+               echo "lshw not installed get disk list via /dev/disk (better via: apt-get install lshw)"
+               DISKS=$(readlink -f /dev/disk/by-id/* | grep -e '[a-z]$' | sort | uniq )
+       fi
+
 	# foreach disk
-	for DISK in $( readlink -f /dev/disk/by-id/* | grep -e '[a-z]$' | sort | uniq )
+       for DISK in $( echo $DISKS)
 	do
 
 		echo "checking disk $DISK"
@@ -228,6 +260,19 @@ check_partition_writable() {
 }
 
 check_docker() {
+
+       if [ ${#DOCKER[@]} == 0 ]
+       then
+               echo "no docker image in config"
+               return
+       fi
+
+       if ! which docker >/dev/null
+       then
+               alert "docker not installed (fix: apt-get install docker-ce) [ignoring test]"
+               return
+       fi
+
 	# check containers are running 
 	for INSTANCE in ${DOCKER[@]}
 	do
@@ -308,6 +353,8 @@ check_file_exists() {
 	done
 }
 
+# ---------------------------------------- commands
+
 full_check() {
 
 	cd /
@@ -359,7 +406,7 @@ end() {
 
 
 
-# -----------------------------------------------------------------------------------------------
+# ------------------------------------------------------ main
 
 if [ "$UID" != "0" ] 
 then 
