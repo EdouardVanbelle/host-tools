@@ -23,8 +23,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 15 4	* * *	root 	/root/scripts/BACKUP.to-remote >/dev/null 
 
 # each 2 hours, check system
-1 */2	* * *	root 	/root/scripts/check-health  >/dev/null 2>/dev/null
+1 */2	* * *	root 	/usr/local/sbin/host-tools full-check   >/dev/null 2>/dev/null
 
 # each monday at 18h
-2 18	* * *	root	/root/scripts/simple-hello >/dev/null
+2 18	* * *	root	/usr/local/sbin/host-tools notify-alive >/dev/null
 

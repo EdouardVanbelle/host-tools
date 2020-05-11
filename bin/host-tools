@@ -2,7 +2,7 @@
 
 # --------------------------- default config
 
-# setup it into /etc/host-tools/check-health.conf
+# setup it into /etc/host-tools.conf
 
 DISKLIMIT=75
 BADSECTORLIMIT=0
@@ -16,24 +16,54 @@ WEBHOOK=""
 # ----------------------------------------
 
 
-CONFIG="/etc/host-tools/check-health.conf"
-REPORT="/var/run/check-health.report"
-LOCK="/var/run/check-health.lock"
+CONFIG="/etc/host-tools.conf"
+REPORT="/var/run/host-tools.report"
+LOCK="/var/run/host-tools.lock"
+HOSTNAME=$(hostname)
+SCRIPTNAME=$(basename $0)
 
 ALARM=0
 
 # keep original language to normalize script output
-LANG=c
+LANG=C
+
+urlencode() {
+    # urlencode <string>
+    local old_lc_collate=$LC_COLLATE
+    LC_COLLATE="C"
+    
+    local length="${#1}"
+    for (( i = 0; i < length; i++ )); do
+        local c="${1:i:1}"
+        case $c in
+            [a-zA-Z0-9.~_-]) printf "$c" ;;
+            *)               printf '%%%02X' "'$c" ;;
+        esac
+    done
+    
+    LC_COLLATE=$old_lc_collate
+}
 
 alert() {
 	ALARM=1
-	logger -s -p user.crit -t check-health -- check-health "$@"
+	logger -s -p user.crit -t "$SCRIPTNAME" -- $SCRIPTNAME "$@"
 	echo "$@" >>$REPORT
 }
 
-load_config() {
+notify() {
 
-	echo loading configuration
+	local message=$( urlencode "$@")
+
+	if [ -z "$WEBHOOK" ] 
+	then
+		alert "WEBHOOK not defined, cannot notify"
+		return
+	fi
+
+	curl -s -q "${WEBHOOK}${message}" >/dev/null
+}
+
+load_config() {
 
 	if ! [ -e $CONFIG ]
 	then
@@ -183,6 +213,7 @@ check_partition_space() {
 
 		[ -z "$IPCENT" ] && continue
 
+
 		if [ $IPCENT -ge $DISKLIMIT ]
 		then
 			alert "$PARTITION reached inode size limit: $IPCENT %"
@@ -233,7 +264,7 @@ check_docker() {
 }
 
 check_last_backup() {
-	# TODO
+	# FIXME: must do it
 	true
 }
 
@@ -270,42 +301,109 @@ check_file_exists() {
 	done
 }
 
+full_check() {
+
+	cd /
+
+	test -e $REPORT && mv $REPORT $REPORT.prev
+
+	check_no_root_password
+	check_root_sshkeys
+	check_security_upgrade
+	check_services
+	check_partition_space
+	check_disk_sectors
+	check_docker
+	check_last_backup
+	check_mount_points
+	check_file_exists
+
+	if [ "$ALARM" != "0" ] 
+	then
+		notify "please check $HOSTNAME, last error: $(tail -n 1 $REPORT)"
+		exit 1
+	fi
+
+	logger -s -p user.info -t $SCRIPTNAME -- "full check sucess"
+	echo "$SCRIPTNAME full-check success at "$(date) >>$REPORT
+
+}
+
+usage() {
+	cat <<EOF
+usage: $SCRIPTNAME <command>
+
+where command can be:
+
+	full-check		perform a full host check
+	last-report		print last report
+	notify-alive		notify host is alive
+	notify-boot		notify host just boot
+	notify <message>>	send a custom notification
+	help 			this help
+
+EOF
+}
+
+end() {
+	rm -f $LOCK
+}
+
+
+
 # -----------------------------------------------------------------------------------------------
 
-
-cd /
-
-HOSTNAME=$(hostname)
+if [ "$UID" != "0" ] 
+then 
+	echo "must be runned has root"
+	exit 1
+fi
 
 #lock
 exec 100>$LOCK || exit 1
 flock -n 100 || exit 1
 
+trap end EXIT
+
 load_config
 
-rm -f $REPORT
-check_no_root_password
-check_root_sshkeys
-check_security_upgrade
-check_services
-check_partition_space
-check_disk_sectors
-check_docker
-check_last_backup
-check_mount_points
-check_file_exists
+case $1 in 
+	'full-check')
+		full_check
+		;;
 
-if [ x"$ALARM" != x"0" ]
-then
-	[ -n "$WEBHOOK" ] && curl -s -q ${WEBHOOK}${HOSTNAME}'%20must%20be%20checked' >/dev/null
-	exit 1
-fi
+	'notify-alive')
+		notify "${HOSTNAME} is alive"
+		;;
 
-logger -s -p user.info -t check-health -- "check sucessful"
-echo "check-health success at "$(date) >>$REPORT
+	'notify-boot')
+		notify "${HOSTNAME} just boot, please check it"
+		;;
 
-rm -f $LOCK
+	'notify')
+		shift
+		notify "$@"
+		;;
 
-exit 0
+	'last-report')
+		echo
+		if [ -e $REPORT ]
+		then
+			cat $REPORT
+		else
+			echo "please run '$SCRIPTNAME full-check' before"
+		fi
+		echo
+		;;
 
+	'help')
+		usage
+		;;
+
+	*)
+		echo "bad syntax"
+		usage
+		exit 1
+		;;
+esac
 

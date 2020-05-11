@@ -10,6 +10,7 @@ die() {
 
 SOURCE=$( readlink -f $(dirname $0)"/.." )
 
+
 echo $SOURCE
 
 test -e $SOURCE/bin/BACKUP.to-local || die "unable to find source"
@@ -23,6 +24,8 @@ test -e $TARGET || mkdir $TARGET
 cp -a -r -f $SOURCE/bin/* $TARGET
 
 cp $SOURCE/etc/update-motd.d_host-99-host-tools /etc/update-motd.d/99-host-tools
+
+cp $SOURCE/bin/host-tools /usr/local/sbin/host-tools
 
 touch $TARGET/DO-NOT-EDIT
 
