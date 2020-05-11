@@ -222,6 +222,11 @@ check_partition_space() {
 	done < <( df -l --exclude-type="devtmpfs" --exclude-type="tmpfs" --output="source,fstype,ipcent,pcent" | tail -n +2 )
 }
 
+check_partition_writable() {
+	# FIXME: must do it
+	true
+}
+
 check_docker() {
 	# check containers are running 
 	for INSTANCE in ${DOCKER[@]}
@@ -268,6 +273,8 @@ check_last_backup() {
 	true
 }
 
+
+
 check_mount_points() {
 
 	#FIXME must be dynamic
@@ -312,6 +319,7 @@ full_check() {
 	check_security_upgrade
 	check_services
 	check_partition_space
+	check_partition_writable
 	check_disk_sectors
 	check_docker
 	check_last_backup

@@ -1,1 +1,42 @@
-TODO...
+Lazy script to check host health and notify my in case of issues
+
+# host-tools help
+
+usage: host-tools <command>
+
+where command can be:
+
+	full-check		perform a full host check (use it in cron for periodic check)
+	last-report		print last report (ex: use in in /etc/update-motd.d)
+	notify-alive		notify host is alive (ex: use it in cron for periodic notification)
+	notify-boot		notify host just boot (ex: put it in /etc/rc.local)
+	notify <message>>	send a custom notification
+	help 			this help
+
+# host-tools full-check
+
+checking no root password
+ensure that ssh-rsa ... ed@bureau is present for root
+checking security package to upgrade
+checking systemd services status
+checking partition /dev/md2
+checking partition /dev/mapper/cryptdata1
+checking partition /dev/mapper/cryptdata2
+checking disk /dev/sda
+checking disk /dev/sdb
+checking docker my-mailer-instance running
+checking container my-mailer-instance security
+my-mailer-instance is a debian
+checking docker roundcube-instance running
+checking container roundcube-instance security
+roundcube-instance is a debian
+checking docker vtun-instance running
+checking container vtun-instance security
+vtun-instance is a debian
+checking docker sync-vale running
+checking container sync-vale security
+sync-vale is an alpine (case not implemented)
+check that /data-active/mail-data exists
+<14>May 11 19:53:52 host-tools: full check sucess
+
+
