@@ -1,0 +1,10 @@
+#!/bin/sh
+
+REPORT=/var/run/check-health.report
+
+if [ -e $REPORT ]
+then
+	echo
+	cat $REPORT
+	echo
+fi

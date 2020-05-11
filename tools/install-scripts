@@ -22,6 +22,8 @@ fi
 test -e $TARGET || mkdir $TARGET
 cp -a -r -f $SOURCE/bin/* $TARGET
 
+cp $SOURCE/etc/update-motd.d_host-99-host-tools /etc/update-motd.d/99-host-tools
+
 touch $TARGET/DO-NOT-EDIT
 
 # print if any change

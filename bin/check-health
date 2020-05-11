@@ -10,12 +10,16 @@ BADSECTORLIMIT=0
 DOCKER=()
 PARTITIONS=()
 EXISTS=()
+ROOT_KEYS=()
 WEBHOOK=""
 
 # ----------------------------------------
 
 
 CONFIG="/etc/host-tools/check-health.conf"
+REPORT="/var/run/check-health.report"
+LOCK="/var/run/check-health.lock"
+
 ALARM=0
 
 # keep original language to normalize script output
@@ -24,6 +28,7 @@ LANG=c
 alert() {
 	ALARM=1
 	logger -s -p user.crit -t check-health -- check-health "$@"
+	echo "$@" >>$REPORT
 }
 
 load_config() {
@@ -39,6 +44,24 @@ load_config() {
 	# load config
 	source $CONFIG
 
+}
+
+check_root_sshkeys() {
+
+	local AUTHORIZED_KEY="/root/.ssh/authorized_keys2"
+
+	PREV_IFS=$IFS
+	IFS="" 
+	for KEY in ${ROOT_KEYS[@]}
+	do
+		local SHORTKEY=$(echo "$KEY" | awk '{ print $1 " ... " $NF }')
+		echo "ensure that $SHORTKEY is present for root"
+		if ! ( grep -q ^$KEY $AUTHORIZED_KEY )
+		then
+			alert "$SHORTKEY is missing in $AUTHORIZED_KEY"
+		fi
+	done
+	IFS=$PREV_IFS
 }
 
 check_no_root_password() {
@@ -255,12 +278,14 @@ cd /
 HOSTNAME=$(hostname)
 
 #lock
-exec 100>/var/tmp/check-health.lock || exit 1
+exec 100>$LOCK || exit 1
 flock -n 100 || exit 1
 
 load_config
 
+rm -f $REPORT
 check_no_root_password
+check_root_sshkeys
 check_security_upgrade
 check_services
 check_partition_space
@@ -277,8 +302,9 @@ then
 fi
 
 logger -s -p user.info -t check-health -- "check sucessful"
+echo "check-health success at "$(date) >>$REPORT
 
-rm -f /var/tmp/check-health.lock
+rm -f $LOCK
 
 exit 0
 
