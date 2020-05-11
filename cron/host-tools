@@ -17,7 +17,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # *  *  *  *  * user-name command to be executed
 
 # each 4 hours sync hard local disk
-34 */4	* * *	root 	/root/scripts/BACKUP.to-local >/dev/null 
+234 */4	* * *	root 	/root/scripts/BACKUP.to-local >/dev/null 
 
 # each days sync to remote
 15 4	* * *	root 	/root/scripts/BACKUP.to-remote >/dev/null 

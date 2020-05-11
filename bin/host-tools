@@ -6,10 +6,10 @@
 
 DISKLIMIT=75
 BADSECTORLIMIT=0
-
-DOCKER=()
-PARTITIONS=()
-EXISTS=()
+ALLOW_ROOT_PASWORD="NO"
+MANDATORY_SERVICES=("ssh.service")
+MANDATORY_DOCKERS=()
+MANDATORY_FILES=()
 ROOT_KEYS=()
 WEBHOOK=""
 
@@ -48,7 +48,7 @@ urlencode() {
 
 alert() {
 	ALARM=1
-	logger -s -p user.crit -t "$SCRIPTNAME" -- $SCRIPTNAME "$@"
+	logger -s -p user.crit -t "$SCRIPTNAME" -- "$@"
 	echo "$@" >>$REPORT
 }
 
@@ -84,7 +84,7 @@ check_root_sshkeys() {
 
 	local AUTHORIZED_KEY="/root/.ssh/authorized_keys2"
 
-       local PREV_IFS=$IFS
+        local PREV_IFS=$IFS
 	IFS="" 
 	for KEY in ${ROOT_KEYS[@]}
 	do
@@ -101,6 +101,11 @@ check_root_sshkeys() {
 check_no_root_password() {
 	# because I prefer keys
 
+	[ "$ALLOW_ROOT_PASWORD" == "yes"  ] && echo "allow root password" && return
+	[ "$ALLOW_ROOT_PASWORD" == "YES"  ] && echo "allow root password" && return
+	[ "$ALLOW_ROOT_PASWORD" == "true" ] && echo "allow root password" && return
+	[ "$ALLOW_ROOT_PASWORD" == "TRUE" ] && echo "allow root password" && return
+
 	echo "checking no root password"
 
 	local ROOT_PASS=$(getent shadow root | cut -d : -f 2)
@@ -111,11 +116,11 @@ check_security_upgrade() {
 
 	echo checking security package to upgrade
 
-       if ! which apt-get >/dev/null
-       then
+        if ! which apt-get >/dev/null
+        then
                echo "apt-get not found, I only know debian systems [ignoring test]"
                return
-       fi
+        fi
 
 
 	apt-get update >/tmp/security-update.list 2>&1
@@ -143,41 +148,56 @@ check_services() {
 
 	echo "checking systemd services status"
 
-       if ! which systemctl >/dev/null
-       then
+        if ! which systemctl >/dev/null
+        then
                echo "systemctl not found (system is not running using systemd ?) [ignoring test]"
                return
-       fi
+        fi
 
 	# example of output
 	# networking.service loaded    failed failed Raise network interfaces
 	# ureadahead.service not-found failed failed ureadahead.service
-	while read -r SERVICE LOAD ACTIVE SUB DESCRIPTION
+	while read -r SERVICE LOAD ACTIVE RUN DESCRIPTION
 	do
-		alert "service $SERVICE warning (loaded=$LOAD active=$ACTIVE sub=$SUB)"
+		alert "service $SERVICE warning (loaded=$LOAD active=$ACTIVE run=$RUN)"
 
-	done < <( systemctl --state=failed  --no-pager --no-legend )
+	done < <( systemctl --state=failed  --no-pager --no-legend list-units )
+
+	for SERVICE in ${MANDATORY_SERVICES[@]}
+	do
+		systemctl --no-pager --no-legend list-units "$SERVICE" | { read -r _S LOAD ACTIVE RUN DESCRIPTION
+			if [ "$_S" == "" ]
+			then
+				alert "mandatory service $SERVICE not running (not found)"
+			elif [ "$RUN" != "running" ]
+			then
+				alert "mandatory service $SERVICE not running (loaded=$LOAD active=$ACTIVE run=$RUN)"
+			else
+				echo "mandatory service $SERVICE is running"
+			fi
+		}
+	done
 }
 
 check_disk_sectors() {
 
-       if ! which smartctl >/dev/null
-       then
+        if ! which smartctl >/dev/null
+        then
                echo "smartctl not installed (fix: apt-get install smartmontools) [ignoring test]"
                return
-       fi
+        fi
 
-       if which lshw >/dev/null
-       then
+        if which lshw >/dev/null
+        then
                # disk list
                DISKS=$(lshw -class disk -short -quiet | tail -n +3 | awk '{ print $2; }')
-       else
+        else
                echo "lshw not installed get disk list via /dev/disk (better via: apt-get install lshw)"
                DISKS=$(readlink -f /dev/disk/by-id/* | grep -e '[a-z]$' | sort | uniq )
-       fi
+        fi
 
 	# foreach disk
-       for DISK in $( echo $DISKS)
+        for DISK in $( echo $DISKS)
 	do
 
 		echo "checking disk $DISK"
@@ -261,20 +281,20 @@ check_partition_writable() {
 
 check_docker() {
 
-       if [ ${#DOCKER[@]} == 0 ]
-       then
+        if [ ${#MANDATORY_DOCKERS[@]} == 0 ]
+        then
                echo "no docker image in config"
                return
-       fi
+        fi
 
-       if ! which docker >/dev/null
-       then
+        if ! which docker >/dev/null
+        then
                alert "docker not installed (fix: apt-get install docker-ce) [ignoring test]"
                return
-       fi
+        fi
 
 	# check containers are running 
-	for INSTANCE in ${DOCKER[@]}
+	for INSTANCE in ${MANDATORY_DOCKERS[@]}
 	do
 		echo checking docker $INSTANCE running
 		if [[ $(docker inspect -f '{{.State.Running}}' $INSTANCE 2>/dev/null) != "true" ]]
@@ -345,7 +365,7 @@ check_mount_points() {
 
 check_file_exists() {
 
-	for FILE in ${EXISTS[@]}
+	for FILE in ${MANDATORY_FILES[@]}
 	do
 		echo check that $FILE exists
 		[ -e $FILE ] || alert "$FILE does not exist, please check"
