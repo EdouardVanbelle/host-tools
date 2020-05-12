@@ -15,6 +15,9 @@ PARTITIONS=("/home" "/home-backup")
 # mandatory packages on system
 MANDATORY_PACKAGES=("openssh-server" "unattended-upgrades")
 
+# package that must not be installed
+FORBIDDEN_PACKAGES=()
+
 # systemd services that must be running
 MANDATORY_SERVICES=("ssh.service" "script-name@ed.service")
 

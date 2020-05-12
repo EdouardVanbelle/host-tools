@@ -11,6 +11,7 @@ MANDATORY_SERVICES=("ssh.service")
 MANDATORY_DOCKERS=()
 MANDATORY_FILES=()
 MANDATORY_PACKAGES=("openssh-server")
+FORBIDDEN_PACKAGES=()
 ROOT_KEYS=()
 WEBHOOK=""
 
@@ -195,6 +196,14 @@ check_packages() {
 			echo "mandatory package $PACKAGE is installed"
 		else
 			alert "mandatory package $PACKAGE is missing"
+		fi
+	done
+
+	for PACKAGE in ${FORBIDDEN_PACKAGES[@]}
+	do
+		if grep -q "^$PACKAGE\s\+install$" /tmp/host-tools.package-list 
+		then
+			alert "forbidden package $PACKAGE must be removed/purged"
 		fi
 	done
 
