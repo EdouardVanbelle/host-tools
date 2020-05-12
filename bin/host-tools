@@ -80,11 +80,26 @@ load_config() {
 
 	if ! [ -e $CONFIG ]
 	then
-		alert "configuration $CONFIG not found"
+		echo "configuration $CONFIG not found"
 		return 1
 	fi
 
-	# load config
+	echo testing
+
+	if [ "$(stat -c '%u %g' -L $CONFIG)" != "0 0" ]
+	then
+		echo "SECURITY: $CONFIG must be owner by uid: root group: root" 
+		exit 1
+	fi
+
+	#expected return: -rw-r--r-- 
+	if echo "$(stat -c '%A' -L $CONFIG)" | grep -q '^........w.$'
+	then
+		echo "SECURITY: $CONFIG cannot be writable by anybody"
+		exit 1
+	fi
+
+	# load config (XXX: dangerous , can execute arbitrary command)
 	source $CONFIG
 
 	CONFIG_LOADED=1
@@ -514,7 +529,7 @@ cmd_last_report() {
 	then
 		cat $REPORT
 	else
-		echo "please run '$SCRIPTNAME full-check' before"
+		echo "please run '$SCRIPTNAME full-check' to have report"
 	fi
 	echo
 }
