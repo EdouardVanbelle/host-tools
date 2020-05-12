@@ -532,6 +532,47 @@ cmd_last_report() {
 	echo
 }
 
+cmd_backup_etc() {
+
+	if ! which dpkg >/dev/null
+	then
+		alert "only know debian for now"
+		return 1
+	fi
+
+	# get path from config
+	local DEST=$BACKUP_PATH
+
+	# overwrite path from parameter
+	[ ! -z "$1" ] && DEST=$1
+
+	if [ -z "$DEST" ] 
+	then
+		echo please specify a destination
+		return 1
+	fi
+
+	echo backup config and package list only of $HOSTNAME to $DEST
+
+	local current=$(pwd)
+	cd /
+
+	if ! touch $DEST/.start-backup
+	then
+		echo cannot write in $DEST
+		return 1
+	fi
+	rm -f $DEST/.start-backup
+
+	# backup /etc
+	tar -cf $DEST/etc.tgz etc
+
+	# get packages selections
+	dpkg --get-selections >$DEST/dpkg.list
+
+	cd $current
+}
+
 cmd_help() {
 	cat <<EOF
 usage $SCRIPTNAME [options] <command>
@@ -544,11 +585,15 @@ options:
 command:
 
 	full-check		perform a full host check (use it in cron for periodic check)
+	last-report		dump last report from full-check command (ex: use in in /etc/update-motd.d)
+
 	install-packages	install mandatory packages
-	last-report		print last report (ex: use in in /etc/update-motd.d)
+	backup-etc [<path>]	backup /etc and package list to <path> destination
+
 	notify-alive		notify host is alive (ex: use it in cron for periodic notification)
 	notify-boot		notify host just boot (ex: put it in /etc/rc.local)
 	notify <message>	send a custom notification
+
 	help 			this help
 
 EOF
