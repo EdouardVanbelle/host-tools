@@ -1,0 +1,29 @@
+# -------------------------------------- config
+
+# alarm if disck space or inode space reach 75%
+DISKLIMIT=75
+
+# number of badsectors to trigger alarm
+BADSECTORLIMIT=0
+
+# we don't accept root password on this host
+ALLOW_ROOT_PASWORD="NO"
+
+# special partitions that must be mounted
+PARTITIONS=("/home" "/home-backup")
+
+# systemd services that must be running
+MANDATORY_SERVICES=("ssh.service" "script-name@ed.service")
+
+# docker instances that must be running
+MANDATORY_DOCKERS=("my-mailer-instance" "roundcube-instance" "vtun-instance" )
+
+MANDATORY_FILES=("/home/mail-data")
+
+# this ssh key must be present in root account
+ROOT_KEYS=( 
+"ssh-rsa AAAAB.... ed@desktop"
+)
+
+# here will send a message on your telegram account
+WEBHOOK='https://api.telegram.org/bot.....:..../sendMessage?chat_id=.....&text='
