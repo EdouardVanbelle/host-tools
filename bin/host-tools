@@ -23,6 +23,8 @@ HOSTNAME=$(hostname)
 SCRIPTNAME=$(basename $0)
 
 ALARM=0
+CONFIG_LOADED=0
+COMMAND_FOUND=0
 
 # keep original language to normalize script output
 LANG=C
@@ -54,7 +56,7 @@ alert() {
 
 notify() {
 
-	local message=$( urlencode "$@")
+	local message=$( urlencode "$*")
 
 	if [ -z "$WEBHOOK" ] 
 	then
@@ -70,13 +72,19 @@ load_config() {
 	if ! [ -e $CONFIG ]
 	then
 		alert "configuration $CONFIG not found"
-		exit 1
+		return 1
 	fi
 
 	# load config
 	source $CONFIG
 
+	CONFIG_LOADED=1
 }
+
+end() {
+	rm -f $LOCK
+}
+
 
 # ---------------------------------------- checks
 
@@ -373,57 +381,87 @@ check_file_exists() {
 	done
 }
 
+check_need_reboot() {
+	if [ \( -f "/var/run/reboot-required" \) -o \( -f "/var/run/reboot-required.pkgs" \) ]
+	then
+		alert "system need a reboot"
+	fi
+}
+
 # ---------------------------------------- commands
 
-full_check() {
-
-	cd /
+cmd_full_check() {
 
 	test -e $REPORT && mv $REPORT $REPORT.prev
 
-	check_no_root_password
-	check_root_sshkeys
-	check_security_upgrade
-	check_services
-	check_partition_space
-	check_partition_writable
-	check_disk_sectors
-	check_docker
-	check_last_backup
-	check_mount_points
-	check_file_exists
+	# execute all check_* functions
+	for CHECK in $(compgen -A function | grep ^check_ | sort)
+	do
+		$CHECK
+	done
 
 	if [ "$ALARM" != "0" ] 
 	then
 		notify "please check $HOSTNAME, last error: $(tail -n 1 $REPORT)"
-		exit 1
-	fi
+	else
+		logger -s -p user.info -t $SCRIPTNAME -- "full check sucess"
+		echo "$SCRIPTNAME full-check success at "$(date) >>$REPORT
 
-	logger -s -p user.info -t $SCRIPTNAME -- "full check sucess"
-	echo "$SCRIPTNAME full-check success at "$(date) >>$REPORT
+		if [ -f $REPORT.prev ]
+		then
+			if ! ( tail -n 1 $REPORT.prev | grep -q "full-check success" )
+			then
+				# previous test was a failure, notify that everthing is back to normal
+				notify "$HOSTNAME full-check is now successful"
+			fi
+		fi
+
+	fi
 
 }
 
-usage() {
+cmd_notify_alive() {
+	notify "${HOSTNAME} is alive"
+}
+
+cmd_notify_boot() {
+	notify "${HOSTNAME} just boot, please check it"
+}
+
+cmd_notify() {
+	notify "${HOSTNAME}: $*"
+}
+
+cmd_last_report() {
+	echo
+	if [ -e $REPORT ]
+	then
+		cat $REPORT
+	else
+		echo "please run '$SCRIPTNAME full-check' before"
+	fi
+	echo
+}
+
+cmd_help() {
 	cat <<EOF
-usage: $SCRIPTNAME <command>
+usage $SCRIPTNAME [options] <command>
 
-where command can be:
+options:
+	-c|--config <file>	specify config file (default: $CONFIG)
+	-r|--report <file>	specify report file (default: $REPORT)
 
-	full-check		perform a full host check
-	last-report		print last report
-	notify-alive		notify host is alive
-	notify-boot		notify host just boot
-	notify <message>>	send a custom notification
+command:
+
+	full-check		perform a full host check (use it in cron for periodic check)
+	last-report		print last report (ex: use in in /etc/update-motd.d)
+	notify-alive		notify host is alive (ex: use it in cron for periodic notification)
+	notify-boot		notify host just boot (ex: put it in /etc/rc.local)
+	notify <message>	send a custom notification
 	help 			this help
 
 EOF
 }
-
-end() {
-	rm -f $LOCK
-}
-
 
 
 # ------------------------------------------------------ main
@@ -438,47 +476,53 @@ fi
 exec 100>$LOCK || exit 1
 flock -n 100 || exit 1
 
+# will clean up lock at exit
 trap end EXIT
 
-load_config
 
-case $1 in 
-	'full-check')
-		full_check
-		;;
+# read parameters
+while [ $# -gt 0 ]
+do
+	case $1 in
+		-c|--config)
+			shift
+			CONFIG=$1
+			echo CONFIG=$CONFIG;
+			shift
+			;;
 
-	'notify-alive')
-		notify "${HOSTNAME} is alive"
-		;;
+		-r|--report)
+			shift
+			REPORT=$1
+			echo REPORT=$CONFIG;
+			shift
+			;;
 
-	'notify-boot')
-		notify "${HOSTNAME} just boot, please check it"
-		;;
+		*)
+			# no more parameter
+			[ $CONFIG_LOADED -eq 0 ] && load_config
 
-	'notify')
-		shift
-		notify "$@"
-		;;
+			# check if $1 is a command (prepend cmd_ and replace - by _)
+			COMMAND=cmd_${1//[-]/_}
+			if ( declare -F "$COMMAND" >/dev/null)
+			then
+				COMMAND_FOUND=1
+				# command exists, execute it giving next parameters
+				shift
+				$COMMAND "$@"
+			fi
 
-	'last-report')
-		echo
-		if [ -e $REPORT ]
-		then
-			cat $REPORT
-		else
-			echo "please run '$SCRIPTNAME full-check' before"
-		fi
-		echo
-		;;
+			# end loop
+			break
+	esac
+done
 
-	'help')
-		usage
-		;;
+if [ $COMMAND_FOUND -eq 0 ]
+then
+	echo "bad syntax"
+	cmd_help
+	exit 1
+fi
 
-	*)
-		echo "bad syntax"
-		usage
-		exit 1
-		;;
-esac
+exit $ALARM
 
