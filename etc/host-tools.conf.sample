@@ -12,6 +12,9 @@ ALLOW_ROOT_PASWORD="NO"
 # special partitions that must be mounted
 PARTITIONS=("/home" "/home-backup")
 
+# mandatory packages on system
+MANDATORY_PACKAGES=("openssh-server" "unattended-upgrades")
+
 # systemd services that must be running
 MANDATORY_SERVICES=("ssh.service" "script-name@ed.service")
 

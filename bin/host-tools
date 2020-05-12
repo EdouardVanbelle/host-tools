@@ -10,6 +10,7 @@ ALLOW_ROOT_PASWORD="NO"
 MANDATORY_SERVICES=("ssh.service")
 MANDATORY_DOCKERS=()
 MANDATORY_FILES=()
+MANDATORY_PACKAGES=("openssh-server")
 ROOT_KEYS=()
 WEBHOOK=""
 
@@ -25,6 +26,7 @@ SCRIPTNAME=$(basename $0)
 ALARM=0
 CONFIG_LOADED=0
 COMMAND_FOUND=0
+NOTIFY=1
 
 # keep original language to normalize script output
 LANG=C
@@ -55,6 +57,12 @@ alert() {
 }
 
 notify() {
+
+	if [ $NOTIFY -eq 0 ]
+	then
+		echo "Silent mode do not notify: $*"
+		return
+	fi
 
 	local message=$( urlencode "$*")
 
@@ -150,6 +158,48 @@ check_security_upgrade() {
 
 	rm -f /tmp/security-upgrade.list
 	rm -f /tmp/security-update.list
+}
+
+check_packages() {
+
+	# FIXME should support alpine with apk
+	if ! which dpkg >/dev/null
+	then
+		echo "dpkg not found, I only know debian distribution [ignoring test]"
+		return
+	fi
+
+	# check that package are fully installed
+	dpkg --audit > /tmp/host-tools.package-audit
+
+	if [ $(wc -l </tmp/host-tools.package-audit) -gt 0 ]
+	then
+		alert "found partial or unconfigured packages during dpkg audit"
+		cat /tmp/host-tools.packages-audit
+	fi
+
+	rm -f /tmp/host-tools.package-audit
+
+	if [ ${#MANDATORY_PACKAGES[@]} == 0 ]
+        then
+               echo "no mandatory package in config"
+               return
+        fi
+
+	dpkg --get-selections > /tmp/host-tools.package-list
+
+	for PACKAGE in ${MANDATORY_PACKAGES[@]}
+	do
+		if grep -q "^$PACKAGE\s\+install$" /tmp/host-tools.package-list 
+		then
+			echo "mandatory package $PACKAGE is installed"
+		else
+			alert "mandatory package $PACKAGE is missing"
+		fi
+	done
+
+	rm -f /tmp/host-tools.package-list
+	
 }
 
 check_services() {
@@ -420,6 +470,23 @@ cmd_full_check() {
 
 }
 
+cmd_install_packages() {
+
+	if [ ${#MANDATORY_PACKAGES[@]} == 0 ]
+        then
+               echo "no mandatory package in config"
+               return 1
+        fi
+
+        if ! which apt-get >/dev/null
+        then
+               echo "apt-get not found, I only know debian systems [ignoring command]"
+               return 1
+        fi
+
+	apt-get install "${MANDATORY_PACKAGES[@]}"
+}
+
 cmd_notify_alive() {
 	notify "${HOSTNAME} is alive"
 }
@@ -450,10 +517,12 @@ usage $SCRIPTNAME [options] <command>
 options:
 	-c|--config <file>	specify config file (default: $CONFIG)
 	-r|--report <file>	specify report file (default: $REPORT)
+	-s|--silent		mute notifications
 
 command:
 
 	full-check		perform a full host check (use it in cron for periodic check)
+	install-packages	install mandatory packages
 	last-report		print last report (ex: use in in /etc/update-motd.d)
 	notify-alive		notify host is alive (ex: use it in cron for periodic notification)
 	notify-boot		notify host just boot (ex: put it in /etc/rc.local)
@@ -496,6 +565,11 @@ do
 			REPORT=$1
 			echo REPORT=$CONFIG;
 			shift
+			;;
+
+		-s|--silent)
+			shift
+			NOTIFY=0
 			;;
 
 		*)

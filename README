@@ -7,10 +7,12 @@ usage host-tools [options] <command>
 options:
 	-c|--config <file>	specify config file (default: /etc/host-tools.conf)
 	-r|--report <file>	specify report file (default: /var/run/host-tools.report)
+	-s|--silent		mute notifications
 
 command:
 
 	full-check		perform a full host check (use it in cron for periodic check)
+	install-packages	install mandatory packages
 	last-report		print last report (ex: use in in /etc/update-motd.d)
 	notify-alive		notify host is alive (ex: use it in cron for periodic notification)
 	notify-boot		notify host just boot (ex: put it in /etc/rc.local)
