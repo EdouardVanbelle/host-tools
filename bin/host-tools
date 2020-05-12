@@ -84,8 +84,6 @@ load_config() {
 		return 1
 	fi
 
-	echo testing
-
 	if [ "$(stat -c '%u %g' -L $CONFIG)" != "0 0" ]
 	then
 		echo "SECURITY: $CONFIG must be owner by uid: root group: root" 
