@@ -1,30 +1,64 @@
 Lazy script to check host health and notify my in case of issues
 
+# basic usage
+
+```
+# host-tools help
+
+usage host-tools [options] <command>
+
+options:
+	-c|--config <file>	specify config file (default: /etc/host-tools.conf)
+	-r|--report <file>	specify report file (default: /var/run/host-tools.report)
+	-s|--silent		mute notifications
+
+command:
+
+	full-check		perform a full host check (use it in cron for periodic check)
+	install-packages	install mandatory packages
+	last-report		print last report (ex: use in in /etc/update-motd.d)
+	notify-alive		notify host is alive (ex: use it in cron for periodic notification)
+	notify-boot		notify host just boot (ex: put it in /etc/rc.local)
+	notify <message>	send a custom notification
+	help 			this help
+
+```
+
 # sample of use
 
-> # host-tools help
->
-> usage host-tools [options] <command>
->
-> options:
->	-c|--config <file>	specify config file (default: /etc/host-tools.conf)
->	-r|--report <file>	specify report file (default: /var/run/host-tools.report)
->	-s|--silent		mute notifications
->
-> command:
->
->	full-check		perform a full host check (use it in cron for periodic check)
->	install-packages	install mandatory packages
->	last-report		print last report (ex: use in in /etc/update-motd.d)
->	notify-alive		notify host is alive (ex: use it in cron for periodic notification)
->	notify-boot		notify host just boot (ex: put it in /etc/rc.local)
->	notify <message>	send a custom notification
->	help 			this help
->
+```
+# host-tools full-check
+
+checking disk /dev/sda
+checking disk /dev/sdb
+checking docker my-mailer-instance running
+checking container my-mailer-instance security
+my-mailer-instance is a debian
+checking docker roundcube-instance running
+checking container roundcube-instance security
+roundcube-instance is a debian
+checking docker vtun-instance running
+checking container vtun-instance security
+vtun-instance is a debian
+checking docker sync-vale running
+checking container sync-vale security
+sync-vale is an alpine (case not implemented)
+check that /data-active/mail-data exists
+checking no root password
+checking partition /dev/md2
+checking partition /dev/mapper/data1
+checking partition /dev/mapper/data2
+ensure that ssh-rsa ... ed@desktop is present for root
+checking security package to upgrade
+checking systemd services status
+mandatory service ssh.service is running
+<14>May 12 17:03:42 host-tools: full check sucess
+
+```
 
 # config file sample
 
-'''bash
+```bash
 # -------------------------------------- config
 
 # alarm if disck space or inode space reach 75%
@@ -61,34 +95,5 @@ ROOT_KEYS=(
 # here will send a message on your telegram account
 WEBHOOK='https://api.telegram.org/bot.....:..../sendMessage?chat_id=.....&text='
 
-'''
-
-# host-tools full-check
-
-> checking disk /dev/sda
-> checking disk /dev/sdb
-> checking docker my-mailer-instance running
-> checking container my-mailer-instance security
-> my-mailer-instance is a debian
-> checking docker roundcube-instance running
-> checking container roundcube-instance security
-> roundcube-instance is a debian
-> checking docker vtun-instance running
-> checking container vtun-instance security
-> vtun-instance is a debian
-> checking docker sync-vale running
-> checking container sync-vale security
-> sync-vale is an alpine (case not implemented)
-> check that /data-active/mail-data exists
-> checking no root password
-> checking partition /dev/md2
-> checking partition /dev/mapper/data1
-> checking partition /dev/mapper/data2
-> ensure that ssh-rsa ... ed@desktop is present for root
-> checking security package to upgrade
-> checking systemd services status
-> mandatory service ssh.service is running
-> <14>May 12 17:03:42 host-tools: full check sucess
-
-
+```
 
