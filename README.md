@@ -14,12 +14,17 @@ options:
 
 command:
 
+
 	full-check		perform a full host check (use it in cron for periodic check)
+	last-report		dump last report from full-check command (ex: use in in /etc/update-motd.d)
+
 	install-packages	install mandatory packages
-	last-report		print last report (ex: use in in /etc/update-motd.d)
+	backup-etc [<path>]	backup /etc and package list to <path> destination
+
 	notify-alive		notify host is alive (ex: use it in cron for periodic notification)
 	notify-boot		notify host just boot (ex: put it in /etc/rc.local)
 	notify <message>	send a custom notification
+
 	help 			this help
 
 ```
@@ -52,7 +57,7 @@ ensure that ssh-rsa ... ed@desktop is present for root
 checking security package to upgrade
 checking systemd services status
 mandatory service ssh.service is running
-<14>May 12 17:03:42 host-tools: full check sucess
+May 12 17:03:42 host-tools: full check sucess
 
 ```
 
