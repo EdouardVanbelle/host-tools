@@ -50,14 +50,18 @@ checking container sync-vale security
 sync-vale is an alpine (case not implemented)
 check that /data-active/mail-data exists
 checking no root password
+mandatory package openssh-server is installed
+mandatory package unattended-upgrades is installed
+mandatory package postfix is installed
 checking partition /dev/md2
-checking partition /dev/mapper/data1
-checking partition /dev/mapper/data2
-ensure that ssh-rsa ... ed@desktop is present for root
+checking partition /dev/mapper/cryptdata1
+checking partition /dev/mapper/cryptdata2
+raid md2 (raid1) is clean
+ensure that ssh-rsa ... ed@bureau is present for root
 checking security package to upgrade
 checking systemd services status
 mandatory service ssh.service is running
-May 12 17:03:42 host-tools: full check sucess
+May 13 22:17:05 host-tools: full check sucess
 
 ```
 
