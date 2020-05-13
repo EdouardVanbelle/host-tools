@@ -78,7 +78,7 @@ notify() {
 
 		# fallback to curl
 		if which wget >/dev/null
-
+		then
 			# fallback to wget
 			wget -q -O /dev/null "${WEBHOOK}${message}"
 		else
@@ -435,6 +435,28 @@ check_last_backup() {
 }
 
 
+check_raid() {
+
+	if [ ! -f '/proc/mdstat' ]
+	then
+		echo "no raid (soft) found ignore test"
+		return 0
+	fi
+
+	while read -r DEVICE ACTIVE TYPE  STATUS
+	do
+		# keep only active parition (do we need to check other state ?)
+		[ "$ACTIVE" != "active" ] && continue 
+
+		if [[ "$STATUS" =~ ^\[U+\]$ ]]
+		then
+			echo "raid $DEVICE ($TYPE) is clean"
+		else
+			alert "raid $DEVICE ($TYPE) is degraded"
+		fi
+	done < <( awk '/^md.*:/{ printf $1 " " $3 " " $4 " "; getline; print $NF}' <'/proc/mdstat')
+
+}
 
 check_mount_points() {
 
