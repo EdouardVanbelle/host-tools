@@ -62,7 +62,7 @@ notify() {
 	if [ $NOTIFY -eq 0 ]
 	then
 		echo "Silent mode do not notify: $*"
-		return
+		return 0
 	fi
 
 	local message=$( urlencode "$*")
@@ -70,10 +70,26 @@ notify() {
 	if [ -z "$WEBHOOK" ] 
 	then
 		alert "WEBHOOK not defined, cannot notify"
-		return
+		return 1
+	fi
+
+	if ! which curl >/dev/null
+	then
+
+		# fallback to curl
+		if which wget >/dev/null
+
+			# fallback to wget
+			wget -q -O /dev/null "${WEBHOOK}${message}"
+		else
+			# neither curl nor wget found, request user to install at least curl
+			echo "I will really appreciate that you 'apt install curl' to call your webhook" &>2
+			return 1
+		fi
 	fi
 
 	curl -s -q "${WEBHOOK}${message}" >/dev/null
+
 }
 
 load_config() {
