@@ -26,6 +26,22 @@ MANDATORY_DOCKERS=("my-mailer-instance" "roundcube-instance" "vtun-instance" )
 
 MANDATORY_FILES=("/home/mail-data")
 
+# domain name to use to grab farm list
+DOMAIN=""
+
+# raid disk to mute notification in case of error (* = matchall)
+SILENT_RAID=()
+
+# disk to mute notification in case of badsector (* = matchall)
+SILENT_BADSECTOR=()
+
+# host mute notification in case of badsector (* = matchall)
+SILENT_HOSTDOWN=()
+
+# docker mute notification in case of upgrade needed (* = matchall)
+SILENT_DOCKER_NEEDUPGRADE=()
+
+
 # this ssh key must be present in root account
 ROOT_KEYS=( 
 "ssh-rsa AAAAB.... ed@desktop"
