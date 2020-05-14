@@ -12,6 +12,10 @@ MANDATORY_DOCKERS=()
 MANDATORY_FILES=()
 MANDATORY_PACKAGES=("openssh-server")
 FORBIDDEN_PACKAGES=()
+SILENT_RAID=()
+SILENT_BADSECTOR=()
+SILENT_HOSTDOWN=()
+SILENT_DOCKER_NEEDUPGRADE=()
 ROOT_KEYS=()
 WEBHOOK=""
 DOMAIN=""
@@ -52,10 +56,33 @@ urlencode() {
     LC_COLLATE=$old_lc_collate
 }
 
+
+contains() {
+	# usage contains "lookup" "array"
+	local lookup=$1
+
+	# match all case
+
+	shift;
+	for element in "$@"
+	do
+	    [ "$element" == "*"       ] && return 0 # considers that '*' match all
+	    [ "$element" == "$lookup" ] && return 0
+   	done
+	return 1
+
+}
+
+
 alert() {
 	ALARM=1
-	logger -s -p user.crit -t "$SCRIPTNAME" -- "$@"
-	echo "$@" >>$REPORT
+	logger -s -p user.crit -t "$SCRIPTNAME" -- "$*"
+	echo "$*" >>$REPORT
+}
+
+silent_alert() {
+	echo "SILENT ALERT:" "$*"
+	echo "$*" >>$REPORT
 }
 
 notify() {
@@ -333,12 +360,15 @@ check_disk_sectors() {
 
 			# debug echo "$DISK $ATTRIBUTE_NAME $RAW_VALUE" 
 
+			local do_alert="alert"
+			contains "$DISK" "${SILENT_BADSECTOR[@]}" && do_alert="silent_alert"
+
 			case "$ATTRIBUTE_NAME" in 
 				"Reallocated_Sector_Ct")
-					[ $RAW_VALUE -gt $BADSECTORLIMIT ] && alert "$DISK has $RAW_VALUE bad sectors";
+					[ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE bad sectors";
 					;;
 				"Current_Pending_Sector")
-					[ $RAW_VALUE -gt $BADSECTORLIMIT ] && alert "$DISK has $RAW_VALUE coming bad sectors";
+					[ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE coming bad sectors";
 					;;
 			esac
 
@@ -411,7 +441,9 @@ check_docker() {
 					docker container exec $INSTANCE /bin/sh -c 'apt-get update >/dev/null 2>/dev/null; apt-get upgrade -s; apt-get clean; rm -rf /var/lib/apt/lists/*' >"/tmp/container-$INSTANCE.package-upgrade"
 					if grep -i security "/tmp/container-$INSTANCE.package-upgrade"
 					then
-						alert "container $INSTANCE need security upgrade (or a rebuild)"
+						local do_alert="alert"
+						contains "$INSTANCE" "${SILENT_DOCKER_NEEDUPGRADE[@]}" && do_alert="silent_alert"
+						$do_alert "container $INSTANCE need security upgrade (or a rebuild)"
 					fi
 
 					rm -f "/tmp/container-$INSTANCE.package-upgrade"
@@ -449,11 +481,14 @@ check_raid() {
 		# keep only active parition (do we need to check other state ?)
 		[ "$ACTIVE" != "active" ] && continue 
 
+		local do_alert="alert"
+		contains "$DEVICE" "${SILENT_RAID[@]}" && do_alert="silent_alert"
+
 		if [[ "$STATUS" =~ ^\[U+\]$ ]]
 		then
 			echo "raid $DEVICE ($TYPE) is clean"
 		else
-			alert "raid $DEVICE ($TYPE) is degraded"
+			$do_alert "raid $DEVICE ($TYPE) is degraded"
 		fi
 	done < <( awk '/^md.*:/{ printf $1 " " $3 " " $4 " "; getline; print $NF}' <'/proc/mdstat')
 
@@ -501,14 +536,18 @@ check_need_reboot() {
 
 check_farm() {
 
+	# XXX: this check is supposed to be minimalist, if you are interested in managing famrs, I recommand 'consul' or similar
+
 	if [ -z "$DOMAIN" ]
 	then
 		echo no domain specified, cannot check farm
 		return 0
 	fi
 
+	echo "discovering $DOMAIN farm using DNS..."
+
 	local found=0
-	for SERVER in $(dig +short SRV farm.$DOMAIN | sed 's/^[0-9 ]\+ //; s/\.$//' | sort )
+	for SERVER in $(dig +short SRV farm.$DOMAIN | sed 's/^[0-9 ]\+ //; s/\.$//' | sort ) 
 	do
 		echo "checking server $SERVER (ping)"
 		found=1
@@ -523,7 +562,10 @@ check_farm() {
 		then
 			echo ping: $SERVER is alive
 		else
-			alert "no ping answer from$SERVER"
+
+			local do_alert="alert"
+			contains "$SERVER" "${SILENT_HOSTDOWN[@]}" && do_alert="silent_alert"
+			$do_alert "no ping answer from $SERVER"
 		fi
 	done
 
@@ -535,6 +577,15 @@ check_farm() {
 
 # ---------------------------------------- commands
 
+cmd_check_list() {
+	# execute all check_* functions
+	for CHECK in $(compgen -A function | grep ^check_ | sort)
+	do
+		echo $CHECK
+	done
+
+}
+
 cmd_full_check() {
 
 	test -e $REPORT && mv $REPORT $REPORT.prev
@@ -542,7 +593,9 @@ cmd_full_check() {
 	# execute all check_* functions
 	for CHECK in $(compgen -A function | grep ^check_ | sort)
 	do
+		echo "== $CHECK =="
 		$CHECK
+		echo
 	done
 
 	if [ "$ALARM" != "0" ] 
@@ -657,6 +710,7 @@ options:
 
 command:
 
+	check-list		list check available
 	full-check		perform a full host check (use it in cron for periodic check)
 	last-report		dump last report from full-check command (ex: use in in /etc/update-motd.d)
 
