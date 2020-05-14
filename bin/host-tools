@@ -510,7 +510,7 @@ check_farm() {
 	local found=0
 	for SERVER in $(dig +short SRV farm.$DOMAIN | sed 's/^[0-9 ]\+ //; s/\.$//' | sort )
 	do
-		echo "checking server $S (ping)"
+		echo "checking server $SERVER (ping)"
 		found=1
 
 		if [ $SERVER == $HOSTNAME ]
