@@ -16,6 +16,7 @@ SILENT_RAID=()
 SILENT_BADSECTOR=()
 SILENT_HOSTDOWN=()
 SILENT_DOCKER_NEEDUPGRADE=()
+SILENT_SERVICES=()
 ROOT_KEYS=()
 WEBHOOK=""
 DOMAIN=""
@@ -283,7 +284,10 @@ check_services() {
 	# ureadahead.service not-found failed failed ureadahead.service
 	while read -r SERVICE LOAD ACTIVE RUN DESCRIPTION
 	do
-		alert "service $SERVICE warning (loaded=$LOAD active=$ACTIVE run=$RUN)"
+		local do_alert="alert"
+		contains "$SERVICE" "${SILENT_SERVICES[@]}" && do_alert=silent_alert
+
+		$do_alert "service $SERVICE warning (loaded=$LOAD active=$ACTIVE run=$RUN)"
 
 	done < <( systemctl --state=failed  --no-pager --no-legend list-units )
 
