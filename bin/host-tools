@@ -148,8 +148,31 @@ load_config() {
 	CONFIG_LOADED=1
 }
 
-end() {
+lock() {
+
+
+	exec 200>$LOCK
+	if ! flock -n 200
+	then
+		echo locked
+		return 1
+	fi
+
+	# will clean up lock at exit
+	trap unlock EXIT
+
+}
+
+unlock() {
+
+	# remove  auto cleanup
+	trap - EXIT
+
 	rm -f $LOCK
+
+	# close filedescriptor 200
+	exec 200>&-
+
 }
 
 
@@ -592,6 +615,8 @@ cmd_check_list() {
 
 cmd_full_check() {
 
+	lock || return 1
+
 	test -e $REPORT && mv $REPORT $REPORT.prev
 
 	# execute all check_* functions
@@ -620,23 +645,31 @@ cmd_full_check() {
 
 	fi
 
+	unlock
+
 }
 
 cmd_install_packages() {
 
+	lock || return 1
+
 	if [ ${#MANDATORY_PACKAGES[@]} == 0 ]
         then
                echo "no mandatory package in config"
+	       unlock
                return 1
         fi
 
         if ! which apt-get >/dev/null
         then
                echo "apt-get not found, I only know debian systems [ignoring command]"
+	       unlock
                return 1
         fi
 
 	apt-get install "${MANDATORY_PACKAGES[@]}"
+
+	unlock
 }
 
 cmd_notify_alive() {
@@ -652,6 +685,9 @@ cmd_notify() {
 }
 
 cmd_last_report() {
+
+	# FIXME: 'd rather use a temp file while building new report
+
 	echo
 	if [ -e $REPORT ]
 	then
@@ -739,12 +775,6 @@ then
 	exit 1
 fi
 
-#lock
-exec 100>$LOCK || exit 1
-flock -n 100 || exit 1
-
-# will clean up lock at exit
-trap end EXIT
 
 
 # read parameters
@@ -778,8 +808,8 @@ do
 			COMMAND=cmd_${1//[-]/_}
 			if ( declare -F "$COMMAND" >/dev/null)
 			then
-				COMMAND_FOUND=1
 				# command exists, execute it giving next parameters
+				COMMAND_FOUND=1
 				shift
 				$COMMAND "$@"
 			fi
