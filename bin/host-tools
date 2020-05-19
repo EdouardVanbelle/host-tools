@@ -20,6 +20,7 @@ SILENT_SERVICES=()
 ROOT_KEYS=()
 WEBHOOK=""
 DOMAIN=""
+HOSTS=()
 
 # ----------------------------------------
 
@@ -565,21 +566,28 @@ check_farm() {
 
 	# XXX: this check is supposed to be minimalist, if you are interested in managing famrs, I recommand 'consul' or similar
 
-	if [ -z "$DOMAIN" ]
+
+        if [ -n "$DOMAIN" ]
 	then
-		echo no domain specified, cannot check farm
-		return 0
+               if ! which dig 2>/dev/null
+               then
+                       alert "dig not found, I advise you to 'apt install dnsutils'"
+               else
+                       echo "discovering $DOMAIN farm using DNS..."
+                       for HOST in $(dig +short SRV farm.$DOMAIN | sed 's/^[0-9 ]\+ //; s/\.$//' | sort )
+                       do
+                               HOSTS+=( $HOST )
+                       done
+               fi
 	fi
 
-	echo "discovering $DOMAIN farm using DNS..."
-
 	local found=0
-	for SERVER in $(dig +short SRV farm.$DOMAIN | sed 's/^[0-9 ]\+ //; s/\.$//' | sort ) 
+        for SERVER in "${HOSTS[@]}"
 	do
 		echo "checking server $SERVER (ping)"
 		found=1
 
-		if [ $SERVER == $HOSTNAME ]
+                if [ "$SERVER" == "$HOSTNAME" ]
 		then
 			echo "I am $SERVER, no need to test :)"
 			continue
