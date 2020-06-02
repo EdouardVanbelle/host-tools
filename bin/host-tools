@@ -351,8 +351,19 @@ check_disk_sectors() {
 	# foreach disk
         for DISK in $( echo $DISKS)
 	do
-
+		SHORT="${DISK##*/}"
 		echo "checking disk $DISK"
+		if [ -e "/sys/block/$SHORT/queue/rotational" ]
+		then
+			if [ $(cat "/sys/block/$SHORT/queue/rotational") == 1 ]
+			then
+				echo "$DISK seems to be a HDD"
+			else
+				echo "$DISK seems to be a SSD"
+			fi
+		else
+			echo "$DISK is neither a HDD nor a SSD"
+		fi
 
 		# foreach smartctl
 
@@ -391,13 +402,51 @@ check_disk_sectors() {
 			local do_alert="alert"
 			contains "$DISK" "${SILENT_BADSECTOR[@]}" && do_alert="silent_alert"
 
-			case "$ATTRIBUTE_NAME" in 
-				"Reallocated_Sector_Ct")
+			# source: https://en.wikipedia.org/wiki/S.M.A.R.T.#Known_ATA_S.M.A.R.T._attributes
+			case "$ID" in 
+				"5")
+					#id=5 "Reallocated_Sector_Ct" (bad for HD and SSD)
+					echo "INFO: Reallocated Sector Count: $RAW_VALUE"
 					[ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE bad sectors";
 					;;
-				"Current_Pending_Sector")
+				"7")
+					#id=5 "Spin_Retry_Count" (bad for HD)
+					# https://kb.acronis.com/content/9110
+					echo "INFO: Spin Retry Count: $RAW_VALUE"
+					# TODO: warn if growing up [ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE spin retry";
+					;;
+
+				"187")
+					#id=187 "Reported Uncorrectable Errors"	(bad SSD)
+					echo "INFO: Reported Uncorrectable Errors: $RAW_VALUE"
+					[ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE uncorrectable errors";
+					;;
+
+				"188")
+					#id=188 "Command Timeout"
+					echo "INFO: Reported command timeout: $RAW_VALUE"
+					[ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE command timeout";
+					;;
+
+				"196")
+					#id=196 "Reallocation Event Count"
+					echo "INFO: Reported command timeout: $RAW_VALUE"
+					;;
+
+				"197")
+					#id=197 "Current_Pending_Sector"
+					echo "INFO: Current Pending Sector: $RAW_VALUE"
 					[ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE coming bad sectors";
 					;;
+
+				"201")
+					#id=201	"Soft Read Error Rate"
+					# https://kb.acronis.com/content/9137
+					RAW_VALUE="${RAW_VALUE%%/*}" # remove all /YY in "XX/YY"
+					echo "INFO: Soft read error: $RAW_VALUE"
+					# TODO: WARN if growing up [ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE read errors";
+					;;
+
 			esac
 
 		done < <( smartctl -A $DISK 2>/dev/null )
