@@ -424,6 +424,7 @@ check_disk_sectors() {
 
 				"188")
 					#id=188 "Command Timeout"
+                                       RAW_VALUE="${RAW_VALUE%% *}" # remove all YY in "XX YY"
 					echo "INFO: Reported command timeout: $RAW_VALUE"
 					[ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE command timeout";
 					;;
