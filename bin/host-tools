@@ -176,6 +176,34 @@ unlock() {
 
 }
 
+# will return all HDD/SSD: sda sdb ...
+find_disks() {
+        local DISKSMAJORS=""
+
+        while read -r MAJOR TYPE
+        do
+                if [ "$TYPE" == "sd" ];
+                then
+                        if [ -z "$DISKSMAJORS" ]
+                        then
+                                DISKSMAJORS="$MAJOR"
+                        else
+                                DISKSMAJORS="$DISKSMAJORS|$MAJOR"
+                        fi
+                fi
+        done </proc/devices
+
+        # keep only disks (minor are multiple of 16)
+        while read -r MAJOR MINOR LABEL STATS
+        do
+                if [[ "$MAJOR" =~ ^($DISKSMAJORS)$ ]] && [ $(( $MINOR % 16 )) -eq 0 ]
+                then
+                        echo $LABEL
+                fi
+
+        done </proc/diskstats
+}
+
 
 # ---------------------------------------- checks
 
@@ -339,17 +367,17 @@ check_disk_sectors() {
                return
         fi
 
-        if which lshw >/dev/null
-        then
-               # disk list
-               DISKS=$(lshw -class disk -short -quiet | tail -n +3 | awk '{ print $2; }')
-        else
-               echo "lshw not installed get disk list via /dev/disk (better via: apt-get install lshw)"
-               DISKS=$(readlink -f /dev/disk/by-id/* | grep -e '[a-z]$' | sort | uniq )
-        fi
+        #if which lshw >/dev/null
+        #then
+        #       # disk list
+        #       DISKS=$(lshw -class disk -short -quiet | tail -n +3 | awk '{ print $2; }')
+        #else
+        #       echo "lshw not installed get disk list via /dev/disk (better via: apt-get install lshw)"
+        #       DISKS=$(readlink -f /dev/disk/by-id/* | grep -e '[a-z]$' | sort | uniq )
+        #fi
 
 	# foreach disk
-        for DISK in $( echo $DISKS)
+        for DISK in $( find_disks)
 	do
 		SHORT="${DISK##*/}"
 		echo "checking disk $DISK"
@@ -450,7 +478,7 @@ check_disk_sectors() {
 
 			esac
 
-		done < <( smartctl -A $DISK 2>/dev/null )
+		done < <( smartctl -A /dev/$DISK 2>/dev/null )
 	done
 }
 
