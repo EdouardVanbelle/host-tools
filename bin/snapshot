@@ -1,0 +1,122 @@
+#!/bin/bash
+
+# XXX: pending development, use it at your risks
+
+MAX_SNAPSHOT=30
+SNAPSHOT_PERIOD=7
+
+SOURCE=/dev/sdb3
+TOPLEVEL=/mnt/system-top-level
+NOW=$(date '+%F')
+
+
+init() {
+
+	test -e $TOPLEVEL || mkdir $TOPLEVEL
+
+	if ! mountpoint $TOPLEVEL >/dev/null
+	then
+		mount $SOURCE $TOPLEVEL -o rw,relatime,compress=lzo,ssd,space_cache,subvolid=0
+	fi
+
+}
+
+list_root_volumes() {
+	# keep only @... subvolumes (like @, @home, ...)
+	btrfs subvolume list $TOPLEVEL | awk '{ if ($NF ~ /^@/ ) { print $NF; } }'
+}
+
+list_snapshots() {
+
+	local LOOKUP=$1
+
+	if [ -z "$LOOKUP" ]
+	then
+		btrfs subvolume list -s $TOPLEVEL | awk '{ print $NF; }'
+	else
+		btrfs subvolume list -s $TOPLEVEL | awk '{ if ( $NF ~ "^'$LOOKUP'" ) { print $NF; } }'
+	fi
+
+}
+
+
+# snapshot 
+snapshot() {
+	test -d $TOPLEVEL/snapshots/$NOW || mkdir -p $TOPLEVEL/snapshots/$NOW
+
+	for VOLUMES in $(list_root_volumes)
+	do
+		if [ -d $TOPLEVEL/snapshots/$NOW/$VOLUMES ]
+		then
+			echo $TOPLEVEL/snapshots/$NOW/$VOLUMES already exists
+		else
+			btrfs subvolume snapshot -r $TOPLEVEL/$VOLUMES $TOPLEVEL/snapshots/$NOW/$VOLUMES
+		fi
+	done
+}
+
+recent_snapshot() {
+	find $TOPLEVEL/snapshots/ -mindepth 1 -maxdepth 1 -type d -ctime -${SNAPSHOT_PERIOD} -printf '%f\n'
+}
+
+has_old_snapshots() {
+	find $TOPLEVEL/snapshots/ -mindepth 1 -maxdepth 1 -type d -ctime +${MAX_SNAPSHOT} -printf '%f\n'
+}
+
+get_last_snapshot() {
+	local LAST=$(ls --sort=time $TOPLEVEL/snapshots/ | head -n 1)
+	echo $LAST
+}
+
+get_package_list() {
+	dpkg --get-selections
+}
+
+backup() {
+
+	# TODO: btrfs send /mnt/system-top-level/snapshots/2020-06-26/@ | btrfs receive /mnt/test/snapshots/
+
+	local SNAPSHOT=$1
+
+	if [ -z "$SNAPSHOT" ]
+	then
+		SNAPSHOT=$NOW
+	fi
+
+	echo do a backup with snapshot $SNAPSHOT
+
+	# FIXME: should ensure existance of snapshots
+
+	# backup last snapshot (XXX: should use btrfs send to minimize changes)
+	for USERHOME in $(ls $TOPLEVEL/snapshots/$SNAPSHOT/@home)
+	do
+		echo $USERHOME
+		rsync -avhx --delete --exclude=.cache/ $TOPLEVEL/snapshots/$SNAPSHOT/@home/$USERHOME/ /mnt/backup/home/$USERHOME/
+	done
+
+	# backup root
+	rsync -avhx --delete --exclude=boot/ $TOPLEVEL/snapshots/$SNAPSHOT/@/ /mnt/backup/root/
+
+	# backup boot volume
+	rsync -avhx --delete                 /boot/                      /mnt/backup/root/boot/
+}
+
+restore() {
+	umount $TOPLEVEL
+}
+
+init
+list_snapshots
+
+echo has recent snapshots: "( < ${SNAPSHOT_PERIOD} days)"
+recent_snapshot
+
+echo has old snapshots: "( > ${MAX_SNAPSHOT} days)"
+has_old_snapshots
+
+LAST=$(get_last_snapshot)
+echo last snapshot: $LAST
+list_snapshots snapshots/$LAST
+
+snapshot
+backup $LAST
