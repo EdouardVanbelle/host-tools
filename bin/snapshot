@@ -9,6 +9,7 @@ SOURCE=/dev/sdb3
 TOPLEVEL=/mnt/system-top-level
 NOW=$(date '+%F')
 
+OFS=" "
 
 init() {
 
@@ -68,13 +69,10 @@ get_last_snapshot() {
 	echo $LAST
 }
 
-get_package_list() {
-	dpkg --get-selections
-}
+
 
 backup() {
 
-	# TODO: btrfs send /mnt/system-top-level/snapshots/2020-06-26/@ | btrfs receive /mnt/test/snapshots/
 
 	local SNAPSHOT=$1
 
@@ -84,21 +82,40 @@ backup() {
 	fi
 
 	echo do a backup with snapshot $SNAPSHOT
-
-	# FIXME: should ensure existance of snapshots
-
-	# backup last snapshot (XXX: should use btrfs send to minimize changes)
-	for USERHOME in $(ls $TOPLEVEL/snapshots/$SNAPSHOT/@home)
+	for SNAP in $(list_snapshots snapshots/$SNAPSHOT)
 	do
-		echo $USERHOME
-		rsync -avhx --delete --exclude=.cache/ $TOPLEVEL/snapshots/$SNAPSHOT/@home/$USERHOME/ /mnt/backup/home/$USERHOME/
+		case $SNAP in
+			snapshots/*/@home)
+				# backup last snapshot (XXX: should use btrfs send to minimize changes)
+				# TODO: btrfs send /mnt/system-top-level/snapshots/2020-06-26/@ | btrfs receive /mnt/test/snapshots/
+				for USERHOME in $(ls $TOPLEVEL/$SNAP)
+				do
+					# security, should not occurs with a btrfs volume
+					[ "$USERHOME" == "lost+found" ] && continue
+
+					echo backuping @home/$USERHOME
+					rsync -ahx --delete --exclude=/.cache/ $TOPLEVEL/$SNAP/$USERHOME/ /mnt/backup/home/$USERHOME/
+				done
+				;;
+
+			snapshots/*/@)
+				echo "backuping /"
+				rsync -ahx --delete --exclude=/boot/ $TOPLEVEL/$SNAP/ /mnt/backup/root/
+
+				if mountpoint /boot >/dev/null
+				then
+					echo "backuping /boot"
+					rsync -ahx --delete  /boot/  /mnt/backup/root/boot/
+				fi
+				;;
+
+			*)
+				echo $SNAP snapshot not recognized
+				;;
+		esac
+
 	done
 
-	# backup root
-	rsync -avhx --delete --exclude=boot/ $TOPLEVEL/snapshots/$SNAPSHOT/@/ /mnt/backup/root/
-
-	# backup boot volume
-	rsync -avhx --delete                 /boot/                      /mnt/backup/root/boot/
 }
 
 restore() {
@@ -106,17 +123,40 @@ restore() {
 }
 
 init
-list_snapshots
+#list_snapshots
 
-echo has recent snapshots: "( < ${SNAPSHOT_PERIOD} days)"
-recent_snapshot
+RECENT=$(recent_snapshot | tr '\n' ' ' | sed 's/ $//' )
+if [ -z "$RECENT" ]
+then
+	echo "do not have recent snapshot, snapshoting..."
+	snapshot
+else
+	echo "system has recent (< ${SNAPSHOT_PERIOD} days) snapshots ($RECENT), no need to snapshot"
+fi
+echo
 
-echo has old snapshots: "( > ${MAX_SNAPSHOT} days)"
-has_old_snapshots
+OLDSNAP=$(has_old_snapshots | tr '\n' ' ' | sed 's/ $//' )
+if [ -z "$OLDSNAP" ]
+then
+	echo "don't have old snapshot"
+else
+	echo "system has old (> ${MAX_SNAPSHOT} days) snapshots ($OLDSNAP)"
+	for OLD in $OLDSNAP
+	do
+		echo $OLD
+		for SNAP in $(list_snapshots snapshots/$OLD)
+		do
+			echo should delete $SNAP
+			#btrfs subvolume delete $TOPLEVEL/$SNAP
+		done
+		rmdir $TOPLEVEL/snapshots/$OLD
+	done
+fi
+echo
 
 LAST=$(get_last_snapshot)
-echo last snapshot: $LAST
+echo last known snapshot: $LAST
 list_snapshots snapshots/$LAST
+echo
 
-snapshot
 backup $LAST
