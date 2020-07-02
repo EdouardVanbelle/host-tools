@@ -43,15 +43,23 @@ list_snapshots() {
 
 # snapshot 
 snapshot() {
-	test -d $TOPLEVEL/snapshots/$NOW || mkdir -p $TOPLEVEL/snapshots/$NOW
+
+	local TAG="$1"
+
+	if [ -z "$TAG" ]
+	then
+		TAG="$NOW"
+	fi
+
+	test -d $TOPLEVEL/snapshots/$TAG || mkdir -p $TOPLEVEL/snapshots/$TAG
 
 	for VOLUMES in $(list_root_volumes)
 	do
-		if [ -d $TOPLEVEL/snapshots/$NOW/$VOLUMES ]
+		if [ -d $TOPLEVEL/snapshots/$TAG/$VOLUMES ]
 		then
-			echo $TOPLEVEL/snapshots/$NOW/$VOLUMES already exists
+			echo $TOPLEVEL/snapshots/$TAG/$VOLUMES already exists
 		else
-			btrfs subvolume snapshot -r $TOPLEVEL/$VOLUMES $TOPLEVEL/snapshots/$NOW/$VOLUMES
+			btrfs subvolume snapshot -r $TOPLEVEL/$VOLUMES $TOPLEVEL/snapshots/$TAG/$VOLUMES
 		fi
 	done
 }
@@ -124,12 +132,15 @@ restore() {
 
 init
 #list_snapshots
+#exit
+
+#snapshot "mint-19.3-before-mint-20"
 
 RECENT=$(recent_snapshot | tr '\n' ' ' | sed 's/ $//' )
 if [ -z "$RECENT" ]
 then
 	echo "do not have recent snapshot, snapshoting..."
-	snapshot
+	snapshot $NOW
 else
 	echo "system has recent (< ${SNAPSHOT_PERIOD} days) snapshots ($RECENT), no need to snapshot"
 fi
