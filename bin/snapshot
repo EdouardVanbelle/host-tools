@@ -65,11 +65,11 @@ snapshot() {
 }
 
 recent_snapshot() {
-	find $TOPLEVEL/snapshots/ -mindepth 1 -maxdepth 1 -type d -ctime -${SNAPSHOT_PERIOD} -printf '%f\n'
+	find $TOPLEVEL/snapshots/ -mindepth 1 -maxdepth 1 -type d -mtime -${SNAPSHOT_PERIOD} -printf '%f\n'
 }
 
 has_old_snapshots() {
-	find $TOPLEVEL/snapshots/ -mindepth 1 -maxdepth 1 -type d -ctime +${MAX_SNAPSHOT} -printf '%f\n'
+	find $TOPLEVEL/snapshots/ -mindepth 1 -maxdepth 1 -type d -mtime +${MAX_SNAPSHOT} -printf '%f\n'
 }
 
 get_last_snapshot() {
@@ -154,13 +154,20 @@ else
 	echo "system has old (> ${MAX_SNAPSHOT} days) snapshots ($OLDSNAP)"
 	for OLD in $OLDSNAP
 	do
-		echo $OLD
+
+		if ! [[ "$OLD" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] 
+		then
+			echo "keep $OLD (not in a date format) delete it manualy if necessary"
+			continue
+		fi
+
+		echo prepare deletion of $OLD
 		for SNAP in $(list_snapshots snapshots/$OLD)
 		do
 			echo should delete $SNAP
 			#btrfs subvolume delete $TOPLEVEL/$SNAP
 		done
-		rmdir $TOPLEVEL/snapshots/$OLD
+		#rmdir $TOPLEVEL/snapshots/$OLD
 	done
 fi
 echo
@@ -169,5 +176,7 @@ LAST=$(get_last_snapshot)
 echo last known snapshot: $LAST
 list_snapshots snapshots/$LAST
 echo
+
+exit
 
 backup $LAST
