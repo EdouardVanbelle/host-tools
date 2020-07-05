@@ -99,7 +99,7 @@ backup() {
 				for USERHOME in $(ls $TOPLEVEL/$SNAP)
 				do
 					# security, should not occurs with a btrfs volume
-					[ "$USERHOME" == "lost+found" ] && continue
+					[ "$USERHOME" = "lost+found" ] && continue
 
 					echo backuping @home/$USERHOME
 					rsync -ahx --delete --exclude=/.cache/ $TOPLEVEL/$SNAP/$USERHOME/ /mnt/backup/home/$USERHOME/
@@ -135,12 +135,14 @@ init
 #exit
 
 #snapshot "mint-19.3-before-mint-20"
+REQUEST_BACKUP=0
 
 RECENT=$(recent_snapshot | tr '\n' ' ' | sed 's/ $//' )
 if [ -z "$RECENT" ]
 then
 	echo "do not have recent snapshot, snapshoting..."
 	snapshot $NOW
+	REQUEST_BACKUP=1
 else
 	echo "system has recent (< ${SNAPSHOT_PERIOD} days) snapshots ($RECENT), no need to snapshot"
 fi
@@ -165,9 +167,9 @@ else
 		for SNAP in $(list_snapshots snapshots/$OLD)
 		do
 			echo should delete $SNAP
-			#btrfs subvolume delete $TOPLEVEL/$SNAP
+			echo TODO btrfs subvolume delete $TOPLEVEL/$SNAP
 		done
-		#rmdir $TOPLEVEL/snapshots/$OLD
+		echo TODO rmdir $TOPLEVEL/snapshots/$OLD
 	done
 fi
 echo
@@ -177,6 +179,7 @@ echo last known snapshot: $LAST
 list_snapshots snapshots/$LAST
 echo
 
-exit
-
-backup $LAST
+if [ "$REQUEST_BACKUP" = "1" ]
+then
+	backup $LAST
+fi
