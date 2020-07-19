@@ -17,6 +17,8 @@ SILENT_BADSECTOR=()
 SILENT_HOSTDOWN=()
 SILENT_DOCKER_NEEDUPGRADE=()
 SILENT_SERVICES=()
+SSL_CONNECTIONS=()
+SSL_PREVENTION_EXPIRATION=30
 ROOT_KEYS=()
 WEBHOOK=""
 DOMAIN=""
@@ -686,6 +688,48 @@ check_farm() {
 	then
 		alert "SRV farm.$DOMAIN not defined (no discovery)"
 	fi
+}
+
+
+check_ssl() {
+
+
+
+        if [ ${#SSL_CONNECTIONS[@]} == 0 ]
+        then
+               echo "no ssl check to perform"
+               return
+        fi
+
+
+	if ! which openssl >/dev/null
+	then
+		alert "openssl not found (fix via: apt-get install openssl)"
+		return 1
+	fi
+
+
+	for CONNECTION in ${SSL_CONNECTIONS[@]}
+	do
+		local FQDN="${CONNECTION%:*}"
+		local PORT="${CONNECTION#*:}"
+		test -z "$PORT" && PORT=443
+
+		echo checking $FQDN port $PORT
+
+		local SSL=$(openssl s_client -servername $FQDN -host $FQDN -port $PORT </dev/null 2>/dev/null | openssl x509 -noout -noout -checkend $((3600*24*$SSL_PREVENTION_EXPIRATION)) -ext subjectAltName | tail -n +2)
+
+		if !( echo $SSL | grep -q "DNS:$FQDN" ) 
+		then
+			alert "certificate $FQDN mismatch fqdn"
+		fi
+
+		if ( echo $SSL | grep -q "Certificate will expire" ) 
+		then
+			alert "please renew certificate $FQDN (will expire in less than $SSL_PREVENTION_EXPIRATION days)"
+		fi
+
+	done
 }
 
 # ---------------------------------------- commands

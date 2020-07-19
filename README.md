@@ -116,6 +116,12 @@ ROOT_KEYS=(
 "ssh-rsa AAAAB.... ed@desktop"
 )
 
+# SSL connections to test
+SSL_CONNECTIONS=("www.example.com:443")
+
+# warn SSL_PREVENTION_EXPIRATION days before expiration
+SSL_PREVENTION_EXPIRATION=30
+
 # here will send a message on your telegram account
 WEBHOOK='https://api.telegram.org/bot.....:..../sendMessage?chat_id=.....&text='
 

@@ -41,6 +41,13 @@ SILENT_HOSTDOWN=()
 # docker mute notification in case of upgrade needed (* = matchall)
 SILENT_DOCKER_NEEDUPGRADE=()
 
+# SSL connections to test
+SSL_CONNECTIONS=("www.example.com:443")
+
+# warn SSL_PREVENTION_EXPIRATION days before expiration
+SSL_PREVENTION_EXPIRATION=30
+
+
 
 # this ssh key must be present in root account
 ROOT_KEYS=( 
