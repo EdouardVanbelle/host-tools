@@ -726,7 +726,8 @@ check_ssl() {
 
 		if ( echo $SSL | grep -q "Certificate will expire" ) 
 		then
-			alert "please renew certificate $FQDN (will expire in less than $SSL_PREVENTION_EXPIRATION days)"
+			local EXPIRATION=$(openssl s_client -servername $FQDN -host $FQDN -port $PORT </dev/null 2>/dev/null | openssl x509 -noout -enddate | cut -d '=' -f 2 | sed 's/ ..:..:../,/; s/ GMT$//;')
+			alert "please renew certificate $FQDN that will expire the $EXPIRATION (less than $SSL_PREVENTION_EXPIRATION days)"
 		fi
 
 	done
