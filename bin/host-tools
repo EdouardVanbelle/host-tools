@@ -506,7 +506,7 @@ check_partition_space() {
 			alert "$PARTITION reached inode size limit: $IPCENT %"
 		fi
 
-	done < <( df -l --exclude-type="devtmpfs" --exclude-type="tmpfs" --output="source,fstype,ipcent,pcent" | tail -n +2 )
+	done < <( df -l --exclude-type="devtmpfs" --exclude-type="tmpfs" --exclude-type="overlay" --output="source,fstype,ipcent,pcent" | tail -n +2 )
 }
 
 check_partition_writable() {
