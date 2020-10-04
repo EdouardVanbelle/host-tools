@@ -299,6 +299,7 @@ check_packages() {
                return
         fi
 
+	# XXX: dpkg or "apt list --installed ?"
 	dpkg --get-selections > /tmp/host-tools.package-list
 
 	for PACKAGE in ${MANDATORY_PACKAGES[@]}
@@ -865,6 +866,7 @@ cmd_backup_etc() {
 	tar -cf $DEST/etc.tgz etc
 
 	# get packages selections
+	# XXX: dpkg or "apt list --installed ?"
 	dpkg --get-selections >$DEST/dpkg.list
 
 	cd $current
