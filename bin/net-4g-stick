@@ -1,0 +1,344 @@
+#!/bin/bash
+
+# stupid scriot that launch a backup connection via 4g when intenet connection is down
+
+# FIXME: sould not put it in code
+WAN=enx001e101f0000
+LAN=enp1s0
+GATEWAY=192.168.8.1
+ADDR=192.168.8.100
+
+source /etc/host-tools.conf
+
+SCRIPTNAME=$(basename $0)
+TABLE=net-4g-stick
+
+# 0 = up
+STATUS=0
+
+# helper
+urlencode() {
+    # urlencode <string>
+    local old_lc_collate=$LC_COLLATE
+    LC_COLLATE="C"
+    
+    local length="${#1}"
+    for (( i = 0; i < length; i++ )); do
+        local c="${1:i:1}"
+        case $c in
+            [a-zA-Z0-9.~_-]) printf "$c" ;;
+            *)               printf '%%%02X' "'$c" ;;
+        esac
+    done
+    
+    LC_COLLATE=$old_lc_collate
+}
+
+auto-via() {
+
+	# switch to backup route if internet is down
+	[ $STATUS != 0 ] && echo $BASHPID > /sys/fs/cgroup/net_cls/$TABLE/tasks
+
+	# execute script
+	$*
+	local RETURN=$?
+
+	# back to default route
+	echo $BASHPID > /sys/fs/cgroup/net_cls/tasks
+
+	return $RETURN
+}
+
+backup-via() {
+	# switch to backup route if internet is down
+	echo $BASHPID > /sys/fs/cgroup/net_cls/$TABLE/tasks
+
+	# execute script
+	$*
+	local RETURN=$?
+
+	# back to default route
+	echo $BASHPID > /sys/fs/cgroup/net_cls/tasks
+
+	return $RETURN
+
+}
+
+
+init() {
+
+	ARG=$1
+
+
+	if ! ( lsusb | grep -q "12d1:14db" ) 
+	then
+		echo please plug Huawei stick
+		exit 1
+	fi
+
+	if nft list table net-4g-stick >/dev/null 2>/dev/null
+	then
+		if [ "$ARG" != "force" ]; 
+		then
+			#suppose that initialisation is already done
+			return 0
+		fi
+	fi
+
+	ip link set dev $WAN up
+	ip addr add $ADDR/24 dev $WAN 2>/dev/null
+
+	# prepare forwarding and masquerading (usefull to allow customer browse usb stick)
+	sysctl net.ipv4.ip_forward=1 >/dev/null
+
+	# prepare cgroup to tag network with a classid
+	test -d /sys/fs/cgroup/net_cls/$TABLE || mkdir /sys/fs/cgroup/net_cls/$TABLE
+	echo 0x00110011 > /sys/fs/cgroup/net_cls/$TABLE/net_cls.classid
+
+	# clean table for security
+	nft flush table net-4g-stick 2>/dev/null
+
+	nft -f - <<EOF
+table ip net-4g-stick {
+	chain prerouting {
+		type nat hook prerouting priority 0; policy accept;
+	}
+
+	chain postrouting {
+		type nat hook postrouting priority 0; policy accept;
+		oifname $WAN masquerade
+	}
+
+	chain input {
+		type filter hook input priority 0; policy accept;
+	}
+
+	# allow all packets sent by the firewall machine itself
+	chain output {
+		type filter hook output priority 100; policy accept;
+	}
+
+	# mark packats from cgroup to use backup route
+	chain mangle {
+		type route hook output priority -150; policy accept;
+		meta cgroup 0x00110011 meta mark set 0xb
+	}
+
+	chain forward {
+		type filter hook forward priority 0; policy drop;
+		iifname $LAN oifname $WAN accept
+		iifname $WAN oifname $LAN ct state related,established accept
+	}
+}
+EOF
+
+	# old school method (take care that I was flushing rules...)
+
+	#iptables -t nat -F
+	#iptables -t nat -A POSTROUTING -o $WAN -j MASQUERADE
+
+	#iptables -F
+	#iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+	#iptables -A FORWARD -i $LAN -o $WAN -j ACCEPT
+
+	# mark all packets in this cgroupe
+	#iptables -L -n -t mangle | grep -q "MARK set 0xb" || iptables -t mangle -A OUTPUT -m cgroup --cgroup 0x00110011 -j MARK --set-mark 0xb
+
+	echo 11 $TABLE > /etc/iproute2/rt_tables.d/$TABLE.conf
+
+	# define a specific route for this mark/cgroup
+	ip rule show | grep -q "fwmark 0xb" || ip rule add fwmark 0xb table $TABLE
+
+	ip route flush                         table $TABLE
+
+	# set up backup gateway as default one
+	ip route add default via $GATEWAY      table $TABLE
+
+	while read -r ROUTE
+	do
+		# copy original route to new table
+		ip route add $ROUTE table $TABLE
+
+	done < <(ip route | grep -v "default via" | grep -v linkdown)
+
+	# can query our default dns
+	#ip route add 192.168.2.0/24 dev $LAN src 192.168.2.2   table $TABLE 2>/dev/null
+        #ip route add 192.168.8.0/24 dev $WAN src 192.168.8.100 table $TABLE 2>/dev/null
+}
+
+notify() {
+
+	local message=$( urlencode "$*")
+
+	if [ -z "$WEBHOOK" ] 
+	then
+		alert "WEBHOOK not defined, cannot notify"
+		return 1
+	fi
+
+	if ! which curl >/dev/null
+	then
+
+		# fallback to curl
+		if which wget >/dev/null
+		then
+			# fallback to wget
+			auto-via wget -q -O /dev/null "${WEBHOOK}${message}"
+			echo $BASHPID > /sys/fs/cgroup/net_cls/tasks
+		else
+			# neither curl nor wget found, request user to install at least curl
+			echo "I will really appreciate that you 'apt install curl' to call your webhook" &>2
+			return 1
+		fi
+	fi
+
+	auto-via curl -s -q "${WEBHOOK}${message}" >/dev/null
+
+}
+
+
+
+
+tunnel-start() {
+	if [ -e $TUNNELPID ]
+	then
+		if pgrep -F $TUNNELPID >/dev/null
+		then
+		 	echo tunnel already started
+			return
+		fi
+	fi
+
+	# start backup tunnel (so tunnel via backup route)
+	backup-via $TUNNELCOMMAND
+
+	#FIXME: check return
+	return $?
+
+}
+
+tunnel-stop() {
+	if [ -e $TUNNELPID ]
+	then
+		if pgrep -F $TUNNELPID >/dev/null
+		then
+			pkill -F $TUNNELPID && rm -f $TUNNELPID
+			return
+		fi
+	fi
+
+	echo tunnel not found
+}
+
+check-internet() {
+	ping -c 2 8.8.8.8 >/dev/null 2>/dev/null
+	STATUS=$?
+	return $STATUS
+}
+
+auto-tunnel() {
+	if check-internet
+	then
+		# internet is up, stop backup
+		if [ -e $TUNNELPID ]
+		then
+			logger -s -p user.crit -t "$SCRIPTNAME" -- "internet is up, stop backup tunnel via 4g"
+			tunnel-stop
+
+			auto-via notify "$HOSTNAME: Internet is up, stopping backup tunnel via 4g"
+		fi
+
+	else
+		# internet is down, start backup
+		if ! [ -e $TUNNELPID ]
+		then
+			logger -s -p user.crit -t "$SCRIPTNAME" -- "Internet down, start backup tunnel via 4g"
+			tunnel-start
+
+			auto-via notify "$HOSTNAME: Internet is down, starting backup tunnel via 4g"
+		fi
+
+	fi
+}
+
+usage() {
+		cat <<EOF
+usage: $SCRIPTNAME <param>
+
+ Where <param> can be:
+
+    init                                initialize backup network
+    start                               manually start backup tunnel
+    stop                                manually stop backup tunnel
+    status                              show if internet is up on default route and also backup route
+    auto                                start/stop backup tunnel according default route status
+    auto-via <command [args]>           execute <command> on correct network according internet status
+    backup-via <command [args]>         execute <command> on backup network
+    help                                this help
+
+EOF
+}
+
+COMMAND=$1
+shift
+
+case $COMMAND in
+
+	init)
+		init force
+		;;
+
+	start)
+		init
+		tunnel-start
+		;;
+
+	stop)
+		tunnel-stop
+		;;
+
+	status)
+		init
+		if check-internet
+		then
+			echo internet is up
+		else
+			if backup-via ping -c 2 8.8.8.8 >/dev/null 2>/dev/null
+			then
+				echo internet is down on default and backup is up
+			else
+				echo internet is down on default and backup also down
+			fi
+		fi
+		;;
+
+	auto)
+		init
+		auto-tunnel
+		;;
+
+	auto-via)
+		init
+		check-internet
+		auto-via "$*"
+		;;
+
+	backup-via)
+		init
+		backup-via "$*"
+		;;
+
+	help)
+		usage
+		;;
+
+	*)
+		echo "command not found"
+		echo
+		usage
+
+		exit 255
+		;;
+
+esac
+
