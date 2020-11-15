@@ -101,11 +101,11 @@ init() {
 	nft -f - <<EOF
 table ip net-4g-stick {
 	chain prerouting {
-		type nat hook prerouting priority 0; policy accept;
+		type nat hook prerouting priority -150; policy accept;
 	}
 
 	chain postrouting {
-		type nat hook postrouting priority 0; policy accept;
+		type nat hook postrouting priority -150; policy accept;
 		oifname $WAN masquerade
 	}
 
@@ -125,9 +125,11 @@ table ip net-4g-stick {
 	}
 
 	chain forward {
-		type filter hook forward priority 0; policy drop;
-		iifname $LAN oifname $WAN accept
-		iifname $WAN oifname $LAN ct state related,established accept
+		type filter hook forward priority -150; policy accept;
+		# FIXME check below
+		#type filter hook forward priority -150; policy drop;
+		#iifname $LAN oifname $WAN accept
+		#iifname $WAN oifname $LAN ct state related,established accept
 	}
 }
 EOF
@@ -164,6 +166,12 @@ EOF
 	# can query our default dns
 	#ip route add 192.168.2.0/24 dev $LAN src 192.168.2.2   table $TABLE 2>/dev/null
         #ip route add 192.168.8.0/24 dev $WAN src 192.168.8.100 table $TABLE 2>/dev/null
+}
+
+flush() {
+	nft delete table net-4g-stick 2>/dev/null
+	ip rule show | grep -q "fwmark 0xb" && ip rule del fwmark 0xb table $TABLE
+	ip route flush table $TABLE
 }
 
 notify() {
@@ -268,6 +276,7 @@ usage: $SCRIPTNAME <param>
  Where <param> can be:
 
     init                                initialize backup network
+    flush				flush nftables and iproute rules & routes
     start                               manually start backup tunnel
     stop                                manually stop backup tunnel
     status                              show if internet is up on default route and also backup route
@@ -286,6 +295,10 @@ case $COMMAND in
 
 	init)
 		init force
+		;;
+
+	flush)
+		flush
 		;;
 
 	start)
