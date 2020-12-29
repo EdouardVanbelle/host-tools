@@ -1,0 +1,11 @@
+#!/bin/bash
+
+DEFAULT_GW=$(ip route list default | awk '{print $3}')
+
+if ping -q -c 3 $DEFAULT_GW >/dev/null 2>/dev/null
+then
+	logger -t net-watchdog "network is up"
+else
+	logger -t net-watchdog "network seem down (unable to reach gateway $DEFAULT_GW), rebooting"
+	/sbin/reboot
+fi
