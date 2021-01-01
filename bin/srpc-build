@@ -1,0 +1,59 @@
+#!/bin/bash
+
+#must be in /etc/srpc-build.conf
+WORKPATH=
+PRIVKEY=
+
+test -e /etc/srpc-build.conf && source /etc/srpc-build.conf
+
+if ! test -d $WORKPATH  
+then
+	echo worhpath not found
+	exit 1
+fi
+
+if ! test -e $PRIVKEY
+then
+	echo privkey not found
+	exit 1
+fi
+
+
+DEVICE=$1
+shift
+
+if ! [[ $DEVICE =~ ^[a-z0-1_\-]+$ ]]
+then
+	echo bad device name
+	exit 2
+fi
+
+TARGET=$WORKPATH/$DEVICE
+rm -f $TARGET.tmp
+
+while read -s COMMAND ARGS
+do
+	ID=$(date '+%s').$$.$RANDOM
+
+	case $COMMAND in
+		noop|reboot)
+			FULLCOMMAND="$ID $COMMAND"
+			;;
+
+		restart)
+			FULLCOMMAND="$ID $COMMAND $ARGS"
+			;;
+		*)
+			echo echo command $COMMAND unkown
+			continue
+			;;
+	esac
+
+	echo $FULLCOMMAND >> $TARGET.tmp
+done
+
+if [ -e $TARGET.tmp ]
+then
+	openssl dgst -sha256 -sign $PRIVKEY -out $TARGET.sign $TARGET.tmp
+	mv $TARGET.tmp $TARGET
+fi

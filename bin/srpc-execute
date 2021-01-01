@@ -1,0 +1,272 @@
+#!/bin/bash
+
+# FIXME
+#source /etc/host-tools.conf
+
+
+usage() {
+	SCRIPT=$(basename $0)
+
+	cat <<EOF
+$SCRIPT <options>
+
+	-n --name	identifier name used to fetch 
+	-b --base	base http url 
+	-h --help	this help
+	-p --publickey	public key url, if not specified, will use certificate from base url
+	-s --spool	spool directory (default: /var/spool/srpc)
+	
+EOF
+	exit
+
+}
+
+VERSION="0.1"
+PUBLICKEY_URL=""
+
+UAGENT="srpc-execute $VERSION"
+
+if ! which curl  >/dev/null
+then
+	echo "please install curl (on debian: apt install curl)"
+	exit 255
+fi
+
+# WARN: must be a persistant storage to avoid cleanup on reboot
+SPOOL=/var/spool/srpc
+
+fetch_publickey() {
+
+	if [ -e $PUBLICKEY ]
+	then
+		# check for old file
+		local CHANGE=$(stat --format '%Y' $PUBLICKEY)
+		local NOW=$(date '+%s')
+		local DIFF=$[ $NOW - $CHANGE ]
+
+		# 4H of TTL
+		if [ $DIFF -lt 14400 ]
+		then
+			# no need to fetch
+			return
+		fi
+	fi
+
+	#echo DEBUG fetching publickey
+
+	if [ -z "$PUBLICKEY_URL" ]
+	then
+		# public key from certificat
+		local DOMAIN=${SRPC_BASE_URL#*://} # remove scheme://
+		DOMAIN=${DOMAIN%%/*} # remove path
+		openssl s_client -connect $DOMAIN:443 </dev/null 2>/dev/null | openssl x509 -noout -pubkey 2>/dev/null >$PUBLICKEY
+		if [ $? -ne 0 ]
+		then
+			echo unable to get public key
+			rm -f $PUBLICKEY
+			exit 255
+		fi
+
+	else
+		# public key from file
+		if ! curl -s $SRPC_BASE_URL/public.pem > $PUBLICKEY
+		then
+			echo unable to get public key
+			rm -f $PUBLICKEY
+			exit 255
+		fi
+	fi
+
+		
+}
+
+
+
+
+clean() {
+	# clean up temp files
+	test -e $headers && unlink $headers
+	test -e $command && unlink $command
+	test -e $sign    && unlink $sign
+}
+
+get() {
+	local headers=/tmp/srpc.headers.$$
+	local command=/tmp/srpc.command.$$
+	local sign=/tmp/srpc.sign.$$
+
+	#echo DEBUG fetching $SRPC_BASE_URL/$SELF
+	if ! curl --user-agent "$UAGENT" -s -D $headers $SRPC_BASE_URL/$SELF > $command
+	then
+		logger -p daemon.warn -t srpc-execute -s "curl status code error: $? while fetching $SRPC_BASE_URL/$SELF"
+		clean
+		exit 0
+	fi
+
+	read -s PROTOCOL STATUS < <(head -n 1 $headers | tr -d '\r')
+
+	if [ "$STATUS" == "404" ]
+	then
+		logger -p daemon.info -t srpc-execute -s "no command for $SELF (resource not found)"
+		clean
+		exit 0
+	elif [ "$STATUS" != "200" ]
+	then
+		logger -p daemon.warn -t srpc-execute -s "unexpected HTTP result (HTTP $STATUS)"
+		clean
+		exit 0
+	fi
+
+	if [ -z $command ]
+	then
+		logger -p daemon.info -t srpc-execute -s "nothing to execute (empty command)"
+		clean
+		exit 0
+	fi
+
+	#echo DEBUG fetching $SRPC_BASE_URL/$SELF.sign
+	curl --user-agent "$UAGENT" -s $SRPC_BASE_URL/$SELF.sign > $sign
+
+	# accept only command that has been signed ! (can be public)
+	if ! openssl dgst -verify $PUBLICKEY -signature $sign $command >/dev/null
+	then
+		logger -p daemon.warn -t srpc-execute -s "signature failed"
+		curl --user-agent "$UAGENT" -s "$SRPC_BASE_URL/$SELF?wrong-signature" >/dev/null
+
+		clean
+		exit 0
+	fi
+
+	while read -s ID COMMAND ARGS
+	do
+		if [ -e $SPOOL/id.$ID ]
+		then
+			logger -p daemon.info -t srpc-execute -s "$ID: command $COMMAND $ARGS already treated (executed or timeout)"
+			continue
+		fi
+
+		# ack this id
+		echo "$COMMAND $ARGS" > $SPOOL/id.$ID
+
+		local CMD_TIME=${ID%%.*} # get command time (contained in ID)
+		local NOW=$(date '+%s')
+
+		if [ $[ $NOW - $CMD_TIME ] -gt 3600 ]
+		then
+			logger -p daemon.info -t srpc-execute -s "$ID: command $COMMAND $ARGS is timed out"
+			curl --user-agent "$UAGENT" -s "$SRPC_BASE_URL/$SELF?timeout=$COMMAND&id=$ID" >/dev/null
+			continue
+		fi
+
+		# by security check that it's a known command (nb: could use sudoers list)
+		case $COMMAND in
+			restart)
+				logger -p daemon.info -t srpc-execute -s "$iD: restarting service $ARGS"
+				# for log, tell to server we will execute command ID
+				curl --user-agent "$UAGENT" -s "$SRPC_BASE_URL/$SELF?exec=$COMMAND&id=$ID" >/dev/null
+				sudo systemctl restart $ARGS >> $SPOOL/$id.$ID 2>&1
+				;;
+			reboot)
+				logger -p daemon.info -t srpc-execute -s "$ID: rebooting"
+				# for log, tell to server we will execute command ID
+				curl --user-agent "$UAGENT" -s "$SRPC_BASE_URL/$SELF?exec=$COMMAND&id=$ID" >/dev/null
+				sudo reboot $ARGS >> $SPOOL/$id.$ID 2>&1
+				;;
+			noop) # for test
+				logger -p daemon.info -t srpc-execute -s "$ID: noop $ARGS"
+				# for log, tell to server we will execute command ID
+				curl --user-agent "$UAGENT" -s "$SRPC_BASE_URL/$SELF?exec=$COMMAND&id=$ID" >/dev/null
+				# no command (just noop for tests)
+				;;
+			*)
+				logger -p daemon.warn -t srpc-execute -s "$ID: unknown command $COMMAND"
+				# for log, tell to server we will execute command ID
+				curl --user-agent "$UAGENT" -s "$SRPC_BASE_URL/$SELF?unknown=$COMMAND&id=$ID" >/dev/null
+				;;
+		esac
+
+
+	done < <( cat $command )
+
+	clean
+}
+
+clean_ids() {
+	# automatically clean up old ID > 30 days
+	find $SPOOL -name "id.*" -ctime +30 -delete >/dev/null
+}
+
+# ---------------------------------------------------------------------------------------------
+
+DO_USAGE=0
+
+if [ $# -eq 0 ]
+then
+	echo please specify at least base url
+	echo
+	DO_USAGE=1
+else
+	while [ $# -gt 0 ] 
+	do
+		OPT=$1
+		shift
+		case "$OPT" in
+			-n|--name)
+				SELF=$1
+				shift
+				;;
+			-b|--base)
+				SRPC_BASE_URL=$1
+				shift
+				;;
+			-s|--spool)
+				SPOOL=$1
+				shift
+				;;
+			-p|--publickey)
+				PUBLICKEY_URL=$1
+				shift
+				;;
+			-h|--help)
+				DO_USAGE=1
+				;;
+			*)
+				echo "$OPT not recognized"
+				DO_USAGE=1
+				;;
+		esac
+	done
+fi
+
+[ $DO_USAGE -eq 1 ] && usage
+
+if [ -z "$SELF" ]
+then
+	# get service name from hostname
+	SELF=$(hostname -s)
+fi
+
+if [ -z "$SRPC_BASE_URL" ]
+then
+	echo "please specify base url"
+	echo
+	usage
+fi
+
+#check spool exists
+if [ ! -d $SPOOL ]
+then
+
+	echo $SPOOL must exists and be writable for $UID
+	exit 255
+fi
+
+PUBLICKEY=$SPOOL/srpc.public.pem
+
+# FIXME: should lock...
+fetch_publickey
+get
+
+clean_ids
+
+
