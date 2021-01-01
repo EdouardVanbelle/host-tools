@@ -10,6 +10,7 @@ usage() {
 	cat <<EOF
 $SCRIPT <options>
 
+	-c --cron	crontab mode, add a random sleep to avoid flooding server
 	-n --name	identifier name used to fetch 
 	-b --base	base http url 
 	-h --help	this help
@@ -23,6 +24,7 @@ EOF
 
 VERSION="0.1"
 PUBLICKEY_URL=""
+CRON=0
 
 UAGENT="srpc-execute $VERSION"
 
@@ -211,6 +213,9 @@ else
 		OPT=$1
 		shift
 		case "$OPT" in
+			-c|--cron)
+				CRON=1
+				;;
 			-n|--name)
 				SELF=$1
 				shift
@@ -262,6 +267,12 @@ then
 fi
 
 PUBLICKEY=$SPOOL/srpc.public.pem
+
+if [ $CRON -eq 1 ]
+then
+	sleep $[ $RANDOM % 16 ]
+fi
+
 
 # FIXME: should lock...
 fetch_publickey
