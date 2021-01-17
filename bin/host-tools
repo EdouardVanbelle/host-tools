@@ -23,6 +23,7 @@ ROOT_KEYS=()
 WEBHOOK=""
 DOMAIN=""
 HOSTS=()
+IP_RBLCHECK=()
 
 # ----------------------------------------
 
@@ -650,7 +651,7 @@ check_farm() {
 
         if [ -n "$DOMAIN" ]
 	then
-               if ! which dig 2>/dev/null
+               if ! which dig >/dev/null
                then
                        alert "dig not found, I advise you to 'apt install dnsutils'"
                else
@@ -730,6 +731,56 @@ check_ssl() {
 			local EXPIRATION=$(openssl s_client -servername $FQDN -host $FQDN -port $PORT </dev/null 2>/dev/null | openssl x509 -noout -enddate | cut -d '=' -f 2 | sed 's/ ..:..:../,/; s/ GMT$//;')
 			alert "please renew certificate $FQDN that will expire the $EXPIRATION (less than $SSL_PREVENTION_EXPIRATION days)"
 		fi
+
+	done
+}
+
+check_rbl() {
+
+	local BLISTS="
+	    dnsbl.httpbl.org
+	    cbl.abuseat.org
+	    dnsbl.sorbs.net
+	    bl.spamcop.net
+	    zen.spamhaus.org
+
+	"
+        if [ ${#IP_RBLCHECK[@]} == 0 ]
+        then
+               echo "no ssl check to perform"
+               return
+        fi
+
+
+	if ! which dig >/dev/null
+	then
+		alert "dig not found (fix via: apt-get install dnsutils)"
+		return 1
+	fi
+
+
+	for IP in ${IP_RBLCHECK[@]}
+	do
+
+		local REVERSE=$(echo $IP | sed -ne "s~^\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)$~\4.\3.\2.\1~p")
+
+		if [ "x${REVERSE}" = "x" ] ; then
+		      alert  "IMHO '$IP' doesn't look like a valid IP address"
+		      continue
+		fi
+
+		for BL in ${BLISTS} ; do
+
+		    # use dig to lookup the name in the blacklist
+		    LISTED="$(dig +short -t A ${REVERSE}.${BL}.)"
+
+		    if [ -z "$LISTED" ]
+		    then
+			    echo "$IP is (rbl)-clean on $BL"
+		    else
+			    alert "$IP is (rbl)-listed on $BL: $LISTED"
+		    fi
+		done
 
 	done
 }
