@@ -571,6 +571,13 @@ check_docker() {
 		fi
 	done
 
+	# check for dead containers 
+	for INSTANCE in $(docker container ls -a --format "{{.Names}}" --filter "status=dead")
+	do
+		local do_alert="alert"
+		$do_alert "container $INSTANCE is dead"
+	done
+
 	# check for unhealthy containers 
 	for INSTANCE in $(docker container ls --format "{{.Names}}" --filter "health=unhealthy")
 	do
