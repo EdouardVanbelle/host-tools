@@ -533,10 +533,10 @@ check_docker() {
 	# check containers are running 
 	for INSTANCE in ${MANDATORY_DOCKERS[@]}
 	do
-		echo checking docker $INSTANCE running
+		echo checking that mandatory docker $INSTANCE running
 		if [[ $(docker inspect -f '{{.State.Running}}' $INSTANCE 2>/dev/null) != "true" ]]
 		then
-			alert "container $INSTANCE not running"
+			alert "mandatory container $INSTANCE not running"
 		else
 			echo checking container $INSTANCE security
 			# container is running, check if need upgrade/a rebuilt
@@ -571,14 +571,25 @@ check_docker() {
 		fi
 	done
 
-	# check for dead containers 
+	echo check for looping containers
+	for INSTANCE in $(docker ps --format '{{.Names}}')
+	do 
+		local RESTARTCOUNT=$(docker inspect -f '{{.RestartCount}}' $INSTANCE)
+		if [ $RESTARTCOUNT -gt 5 ]
+		then
+			local do_alert="alert"
+			$do_alert "container $INSTANCE is restarting too many times ($RESTARTCOUNT times)"
+		fi
+	done
+
+	echo check for dead containers 
 	for INSTANCE in $(docker container ls -a --format "{{.Names}}" --filter "status=dead")
 	do
 		local do_alert="alert"
 		$do_alert "container $INSTANCE is dead"
 	done
 
-	# check for unhealthy containers 
+	echo check for unhealthy containers 
 	for INSTANCE in $(docker container ls --format "{{.Names}}" --filter "health=unhealthy")
 	do
 		local do_alert="alert"
