@@ -570,6 +570,13 @@ check_docker() {
 
 		fi
 	done
+
+	# check for unhealthy containers 
+	for INSTANCE in $(docker container ls --format "{{.Names}}" --filter "health=unhealthy")
+	do
+		local do_alert="alert"
+		$do_alert "container $INSTANCE is unhealthy"
+	done
 }
 
 check_last_backup() {
