@@ -568,7 +568,20 @@ check_docker() {
 
 				;;
 			alpine)
-				echo "$INSTANCE is an alpine (case not implemented)"
+				echo "$INSTANCE is an alpine"
+
+				docker container exec $INSTANCE /bin/sh -c 'apk update >/dev/null 2>/dev/null; apk version | tail -n +2' >"/tmp/container-$INSTANCE.package-upgrade"
+
+				if [ ! -z "$(cat /tmp/container-$INSTANCE.package-upgrade)" ]
+				then
+					cat /tmp/container-$INSTANCE.package-upgrade
+					local do_alert="alert"
+					contains "$INSTANCE" "${SILENT_DOCKER_NEEDUPGRADE[@]}" && do_alert="silent_alert"
+					$do_alert "container $INSTANCE need upgrade (or a rebuild)"
+				fi
+
+				rm -f "/tmp/container-$INSTANCE.package-upgrade"
+
 				;;
 			*)
 				alert "$INSTANCE is an unknown distribution ($DISTRIBUTION)"
