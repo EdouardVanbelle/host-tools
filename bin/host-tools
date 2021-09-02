@@ -349,7 +349,7 @@ check_cpusanity() {
 
 check_oomkilled() {
 
-	if ( grep -E -i 'killed process|out of memory' /var/log/messages > /tmp/oom.list )
+	if ( dmesg -T | grep -E -i 'killed process|out of memory' > /tmp/oom.list )
 	then
 		alert "found out of memory processes " $(tail -n 1 /tmp/oom.list)
 	fi
