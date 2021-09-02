@@ -1,0 +1,11 @@
+[Unit]
+Description=Check host periodically
+
+[Timer]
+OnCalendar=*-*-* 8,10,12,14,16,18,20:00:00
+#OnCalendar=*:0/5
+Persistent=true
+RandomizedDelaySec=15sec
+
+[Install]
+WantedBy=timers.target

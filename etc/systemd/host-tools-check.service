@@ -1,0 +1,8 @@
+[Unit]
+Description=Check host health
+
+[Service]
+ExecStart=-/usr/local/sbin/host-tools full-check
+
+[Install]
+WantedBy=host-tools-check.timer

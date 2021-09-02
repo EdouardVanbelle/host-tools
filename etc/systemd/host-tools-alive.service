@@ -1,0 +1,8 @@
+[Unit]
+Description=Keepalive notification
+
+[Service]
+ExecStart=-/usr/local/sbin/host-tools notify-alive
+
+[Install]
+WantedBy=host-tools-alive.timer
