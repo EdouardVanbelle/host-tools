@@ -325,6 +325,38 @@ check_packages() {
 	
 }
 
+check_cpusanity() {
+
+	echo "check load avg in 15min"
+	LOADAVG=$(cat /proc/loadavg | awk '{print $3}')
+        LOADAVG_ROUNDED=$( echo $LOADAVG | awk '{ print int($1+0.5) }')
+	CPUCOUNT=$(grep -c ^processor /proc/cpuinfo)
+
+	if [ $LOADAVG_ROUNDED -ge $CPUCOUNT ]
+	then
+		alert "cpu loadavg (on 15min) is high: $LOADAVG (cpu count: $CPUCOUNT)"
+	fi
+
+	echo "check for blocked processes (in IOWait for example)"
+	PROCSBLOCKED=$(grep procs_blocked /proc/stat | awk '{print $2}')
+	if [ $PROCSBLOCKED -gt 5 ] 
+	then
+		alert "found many blocked processes ($PROCSBLOCKED)"
+	fi
+
+
+}
+
+check_oomkilled() {
+
+	if ( grep -E -i 'killed process|out of memory' /var/log/messages > /tmp/oom.list )
+	then
+		alert "found out of memory processes " $(tail -n 1 /tmp/oom.list)
+	fi
+
+	rm -f /tmp/oom.list
+}
+
 check_services() {
 
 	echo "checking systemd services status"
