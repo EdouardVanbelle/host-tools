@@ -162,11 +162,11 @@ get() {
 
 		# by security check that it's a known command (nb: could use sudoers list)
 		case $COMMAND in
-			restart)
+			stop|start|restart|enable|disable)
 				logger -p daemon.info -t srpc-execute -s "$iD: restarting service $ARGS"
 				# for log, tell to server we will execute command ID
 				curl --user-agent "$UAGENT" -s "$SRPC_BASE_URL/$SELF?exec=$COMMAND&id=$ID" >/dev/null
-				sudo systemctl restart $ARGS >> $SPOOL/$id.$ID 2>&1
+				sudo systemctl $COMMAND $ARGS >> $SPOOL/$id.$ID 2>&1
 				;;
 			reboot)
 				logger -p daemon.info -t srpc-execute -s "$ID: rebooting"

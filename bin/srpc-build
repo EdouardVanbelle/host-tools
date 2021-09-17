@@ -40,7 +40,7 @@ do
 			FULLCOMMAND="$ID $COMMAND"
 			;;
 
-		restart)
+		stop|start|restart|enable|disable)
 			FULLCOMMAND="$ID $COMMAND $ARGS"
 			;;
 		*)
