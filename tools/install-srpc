@@ -4,7 +4,7 @@ SOURCE=$( readlink -f $(dirname $0)"/.." )
 TARGET=/usr/local
 
 #FIXME: should execute script in user and use sudo
-mkdir /var/spool/srpc
+mkdir -p /var/spool/srpc
 
 cp $SOURCE/bin/srpc-execute $TARGET/bin/
 
