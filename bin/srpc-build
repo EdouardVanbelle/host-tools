@@ -18,42 +18,91 @@ then
 	exit 1
 fi
 
+ACTION=${1:-create}
+shift
 
 DEVICE=$1
 shift
 
-if ! [[ $DEVICE =~ ^[a-z0-1_\-]+$ ]]
+
+if [ "$ACTION" != "help" ] && [ "$ACTION" != "list" ]
 then
-	echo bad device name
-	exit 2
+	if ! [[ $DEVICE =~ ^[a-z0-1_\-]+$ ]]
+	then
+		echo bad device name
+		exit 2
+	fi
 fi
+
 
 TARGET=$WORKPATH/$DEVICE
 rm -f $TARGET.tmp
 
-while read -s COMMAND ARGS
-do
-	ID=$(date '+%s').$$.$RANDOM
+case $ACTION in
+        help)
+		echo $0 "<help|list|show|create|drop> {device-name}"
+		exit
+		;;
+	list)
+		for FILE in $(ls $WORKPATH)
+		do
+			[[ $FILE =~ ^[a-z0-1_\-]+$ ]] || continue
+			echo $FILE
+		done
+		;;
+	drop)
+		if ! [ -e $TARGET ]
+		then
+			echo no command for $DEVICE
+		else
+			rm -f $TARGET
+		fi
+		rm -f $TARGET.sign
 
-	case $COMMAND in
-		noop|reboot)
-			FULLCOMMAND="$ID $COMMAND"
-			;;
+		exit
+		;;
+	show)
+		if ! [ -e $TARGET ]
+		then
+			echo no command for $DEVICE
+			exit
+		fi
+		# do not show ID
+		cat $TARGET | cut -f 2- -d ' '
+		;;
 
-		stop|start|restart|enable|disable)
-			FULLCOMMAND="$ID $COMMAND $ARGS"
-			;;
-		*)
-			echo echo command $COMMAND unkown
-			continue
-			;;
-	esac
+	create)
+		while read -s COMMAND ARGS
+		do
+			ID=$(date '+%s').$$.$RANDOM
 
-	echo $FULLCOMMAND >> $TARGET.tmp
-done
+			case $COMMAND in
+				noop|reboot)
+					FULLCOMMAND="$ID $COMMAND"
+					;;
 
-if [ -e $TARGET.tmp ]
-then
-	openssl dgst -sha256 -sign $PRIVKEY -out $TARGET.sign $TARGET.tmp
-	mv $TARGET.tmp $TARGET
-fi
+				stop|start|restart|enable|disable)
+					FULLCOMMAND="$ID $COMMAND $ARGS"
+					;;
+				*)
+					echo echo command $COMMAND unkown
+					continue
+					;;
+			esac
+
+			echo $FULLCOMMAND >> $TARGET.tmp
+		done
+
+		if [ -e $TARGET.tmp ]
+		then
+			openssl dgst -sha256 -sign $PRIVKEY -out $TARGET.sign $TARGET.tmp
+			mv $TARGET.tmp $TARGET
+		fi
+
+		;;
+	*)
+		echo command $ACTION unknown 1>&2
+		;;
+esac
+
+
