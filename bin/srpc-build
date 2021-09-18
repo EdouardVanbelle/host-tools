@@ -18,7 +18,7 @@ then
 	exit 1
 fi
 
-ACTION=${1:-create}
+ACTION=${1:-help}
 shift
 
 DEVICE=$1
@@ -85,7 +85,7 @@ case $ACTION in
 					FULLCOMMAND="$ID $COMMAND $ARGS"
 					;;
 				*)
-					echo echo command $COMMAND unkown
+					echo command $COMMAND unkown
 					continue
 					;;
 			esac
