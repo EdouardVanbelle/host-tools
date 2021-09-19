@@ -76,15 +76,6 @@ init() {
 		exit 1
 	fi
 
-	if nft list table net-4g-stick >/dev/null 2>/dev/null
-	then
-		if [ "$ARG" != "force" ]; 
-		then
-			#suppose that initialisation is already done
-			return 0
-		fi
-	fi
-
 	ip link set dev $WAN up
 	ip addr add $ADDR/24 dev $WAN 2>/dev/null
 
@@ -94,6 +85,16 @@ init() {
 	# prepare cgroup to tag network with a classid
 	test -d /sys/fs/cgroup/net_cls/$TABLE || mkdir /sys/fs/cgroup/net_cls/$TABLE
 	echo 0x00110011 > /sys/fs/cgroup/net_cls/$TABLE/net_cls.classid
+
+
+       if nft list table net-4g-stick >/dev/null 2>/dev/null
+       then
+               if [ "$ARG" != "force" ];
+               then
+                       #suppose that initialisation is already done
+                       return 0
+               fi
+       fi
 
 	# clean table for security
 	nft flush table net-4g-stick 2>/dev/null
