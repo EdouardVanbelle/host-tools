@@ -82,6 +82,10 @@ init() {
 	# prepare forwarding and masquerading (usefull to allow customer browse usb stick)
 	sysctl net.ipv4.ip_forward=1 >/dev/null
 
+       # ensure net_cls is present
+       test -d /sys/fs/cgroup/net_cls || mkdir /sys/fs/cgroup/net_cls
+       grep -q "net_cls /sys/fs/cgroup/net_cls" /proc/mounts || mount -t cgroup -onet_cls net_cls /sys/fs/cgroup/net_cls
+
 	# prepare cgroup to tag network with a classid
 	test -d /sys/fs/cgroup/net_cls/$TABLE || mkdir /sys/fs/cgroup/net_cls/$TABLE
 	echo 0x00110011 > /sys/fs/cgroup/net_cls/$TABLE/net_cls.classid
