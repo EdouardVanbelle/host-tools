@@ -187,13 +187,13 @@ then
 	create_snapshot hourly/$NOW
 fi
 
-
-for LABEL in $(get_snapshot_by_age +$(($HOURLY_PERIOD*($HOURLY_COUNT+1))) hourly)
+# + 1/2 period to avoid tangent problems
+for LABEL in $(get_snapshot_by_age +$(($HOURLY_PERIOD*$HOURLY_COUNT+$HOURLY_PERIOD/2)) hourly)
 do
 
 	if [ -z "$(get_snapshot_by_age -$DAILY_PERIOD daily)" ]
 	then
-		echo no daily snapshot, moving hourly/$LABEL
+		echo no daily snapshot, moving old hourly/$LABEL
 		move_snapshot hourly/$LABEL daily/$LABEL
 	else
 		# should not occurs
@@ -202,12 +202,13 @@ do
 	fi
 done
 
-for LABEL in $(get_snapshot_by_age +$(($DAILY_PERIOD*($DAILY_COUNT+1))) daily)
+# + 1/2 period to avoid tangent problems
+for LABEL in $(get_snapshot_by_age +$(($DAILY_PERIOD*$DAILY_COUNT+$DAILY_PERIOD/2)) daily)
 do
 
 	if [ -z "$(get_snapshot_by_age -$WEEKLY_PERIOD weekly)" ]
 	then
-		echo no weekly snapshot, moving daily/$LABEL
+		echo no weekly snapshot, moving old daily/$LABEL
 		move_snapshot daily/$LABEL weekly/$LABEL
 	else
 		# should not occurs
@@ -216,7 +217,8 @@ do
 	fi
 done
 
-for LABEL in $(get_snapshot_by_age +$(($WEEKLY_PERIOD*$WEEKLY_COUNT+($DAILY_PERIOD+1))) weekly)
+# + 1/2 period to avoid tangent problems
+for LABEL in $(get_snapshot_by_age +$(($WEEKLY_PERIOD*$WEEKLY_COUNT+$WEEKLY_PERIOD/2)) weekly)
 do
 	echo found old snapshot: weekly/$LABEL
 	delete_snapshot weekly/$LABEL
