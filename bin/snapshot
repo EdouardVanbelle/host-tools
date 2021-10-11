@@ -2,22 +2,37 @@
 
 # XXX: pending development, use it at your risks
 
-MAX_SNAPSHOT=30
-SNAPSHOT_PERIOD=7
+TOPLEVEL=$1
 
-SOURCE=/dev/sdb3
-TOPLEVEL=/mnt/system-top-level
-NOW=$(date '+%F')
-
-OFS=" "
+usage() {
+	SCRIPT=$(basename $0)
+	echo usage: $SCRIPT '<root btrfs filesystem>'
+	exit 1
+}
 
 init() {
 
-	test -e $TOPLEVEL || mkdir $TOPLEVEL
+	# get canonical path
+	TOPLEVEL=$(readlink -f $TOPLEVEL)
 
+	#test -e $TOPLEVEL || mkdir $TOPLEVEL
 	if ! mountpoint $TOPLEVEL >/dev/null
 	then
-		mount $SOURCE $TOPLEVEL -o rw,relatime,compress=lzo,ssd,space_cache,subvolid=0
+		echo $TOPLEVEL is not a mountpoint
+		exit 1
+		#mount $SOURCE $TOPLEVEL -o rw,relatime,compress=lzo,ssd,space_cache,subvolid=0
+	fi
+
+	if ! btrfs filesystem show $TOPLEVEL >/dev/null 2>/dev/null
+	then
+		echo $TOPLEVEL is neither mounted or nor a btrfs filesystem
+		exit 1
+	fi
+
+	if ! [ -d $TOPLEVEL/snapshots ]
+	then
+		echo $TOPLEVEL does not have snapshots, is this mount point connected to top level subvolume ?
+		exit 1
 	fi
 
 }
@@ -33,16 +48,16 @@ list_snapshots() {
 
 	if [ -z "$LOOKUP" ]
 	then
-		btrfs subvolume list -s $TOPLEVEL | awk '{ print $NF; }'
+		btrfs subvolume list -s $TOPLEVEL | awk '{ print $NF; }' | sed 's!^snapshots/!!g;'
 	else
-		btrfs subvolume list -s $TOPLEVEL | awk '{ if ( $NF ~ "^'$LOOKUP'" ) { print $NF; } }'
+		btrfs subvolume list -s $TOPLEVEL | awk '{ if ( $NF ~ "^snapshots/'$LOOKUP'" ) { print $NF; } }' | sed 's!^snapshots/!!g;'
 	fi
 
 }
 
 
 # snapshot 
-snapshot() {
+create_snapshot() {
 
 	local TAG="$1"
 
@@ -64,12 +79,31 @@ snapshot() {
 	done
 }
 
-recent_snapshot() {
-	find $TOPLEVEL/snapshots/ -mindepth 1 -maxdepth 1 -type d -mtime -${SNAPSHOT_PERIOD} -printf '%f\n'
+delete_snapshot() {
+
+	local TAG="$1"
+
+	for SNAP in $(list_snapshots $TAG)
+	do
+		btrfs subvolume delete "$TOPLEVEL/snapshots/$SNAP"
+	done
+	rmdir "$TOPLEVEL/snapshots/$TAG"
+	return $?
 }
 
-has_old_snapshots() {
-	find $TOPLEVEL/snapshots/ -mindepth 1 -maxdepth 1 -type d -mtime +${MAX_SNAPSHOT} -printf '%f\n'
+move_snapshot() {
+	local FROM="$1"
+	local TO="$2"
+
+	mv "$TOPLEVEL/snapshots/$FROM" "$TOPLEVEL/snapshots/$TO"
+	return $?
+}
+
+get_snapshot_by_age() {
+	local DURATION=$1
+	local SUBPATH=$2
+	test -d $TOPLEVEL/snapshots/$SUBPATH || return 1
+	find $TOPLEVEL/snapshots/$SUBPATH -mindepth 1 -maxdepth 1 -type d -cmin ${DURATION} -printf '%f\n' | sort
 }
 
 get_last_snapshot() {
@@ -77,7 +111,7 @@ get_last_snapshot() {
 	echo $LAST
 }
 
-
+# ------------------------------------ deprecated
 
 backup() {
 
@@ -90,7 +124,7 @@ backup() {
 	fi
 
 	echo do a backup with snapshot $SNAPSHOT
-	for SNAP in $(list_snapshots snapshots/$SNAPSHOT)
+	for SNAP in $(list_snapshots $SNAPSHOT)
 	do
 		case $SNAP in
 			snapshots/*/@home)
@@ -126,18 +160,75 @@ backup() {
 
 }
 
-restore() {
-	umount $TOPLEVEL
-}
+# ------------------------------------ main script
+
+if [ -z "$TOPLEVEL" ]
+then
+	usage
+fi
+
+NOW=$(date +'%Y-%m-%d.%Hh%M')
+
+OFS=" "
+
 
 init
-#list_snapshots
-#exit
 
-#snapshot "mint-19.3-before-mint-20"
-REQUEST_BACKUP=0
+HOURLY_PERIOD=60
+HOURLY_COUNT=2
+DAILY_PERIOD=$((60*24))
+DAILY_COUNT=2
+WEEKLY_PERIOD=$((60*24*7))
+WEEKLY_COUNT=3
 
-RECENT=$(recent_snapshot | tr '\n' ' ' | sed 's/ $//' )
+if [ -z "$(get_snapshot_by_age -$HOURLY_PERIOD hourly)" ]
+then
+	echo no hourly snapshot, creating one
+	create_snapshot hourly/$NOW
+fi
+
+
+for LABEL in $(get_snapshot_by_age +$(($HOURLY_PERIOD*($HOURLY_COUNT+1))) hourly)
+do
+
+	if [ -z "$(get_snapshot_by_age -$DAILY_PERIOD daily)" ]
+	then
+		echo no daily snapshot, moving hourly/$LABEL
+		move_snapshot hourly/$LABEL daily/$LABEL
+	else
+		# should not occurs
+		echo remove old snapshot: hourly/$LABEL
+		delete_snapshot hourly/$LABEL
+	fi
+done
+
+for LABEL in $(get_snapshot_by_age +$(($DAILY_PERIOD*($DAILY_COUNT+1))) daily)
+do
+
+	if [ -z "$(get_snapshot_by_age -$WEEKLY_PERIOD weekly)" ]
+	then
+		echo no weekly snapshot, moving daily/$LABEL
+		move_snapshot daily/$LABEL weekly/$LABEL
+	else
+		# should not occurs
+		echo found old snapshot: daily/$LABEL
+		delete_snapshot daily/$LABEL
+	fi
+done
+
+for LABEL in $(get_snapshot_by_age +$(($WEEKLY_PERIOD*$WEEKLY_COUNT+($DAILY_PERIOD+1))) weekly)
+do
+	echo found old snapshot: weekly/$LABEL
+	delete_snapshot weekly/$LABEL
+done
+
+echo situation
+list_snapshots
+
+# -------------------------------------------- no more used
+exit
+
+
 if [ -z "$RECENT" ]
 then
 	echo "do not have recent snapshot, snapshoting..."
@@ -164,7 +255,7 @@ else
 		fi
 
 		echo prepare deletion of $OLD
-		for SNAP in $(list_snapshots snapshots/$OLD)
+		for SNAP in $(list_snapshots $OLD)
 		do
 			echo should delete $SNAP
 			echo TODO btrfs subvolume delete $TOPLEVEL/$SNAP
@@ -174,12 +265,3 @@ else
 fi
 echo
 
-LAST=$(get_last_snapshot)
-echo last known snapshot: $LAST
-list_snapshots snapshots/$LAST
-echo
-
-if [ "$REQUEST_BACKUP" = "1" ]
-then
-	backup $LAST
-fi
