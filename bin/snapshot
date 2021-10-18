@@ -38,8 +38,8 @@ init() {
 }
 
 list_root_volumes() {
-	# keep only @... subvolumes (like @, @home, ...)
-	btrfs subvolume list $TOPLEVEL | awk '{ if ($NF ~ /^@/ ) { print $NF; } }'
+        # keep only top level subvolumes (which does not contains /)
+        btrfs subvolume list $TOPLEVEL | awk '{ if ($NF !~ /\// ) { print $NF; } }'
 }
 
 list_snapshots() {
