@@ -2,7 +2,6 @@
 
 # XXX: pending development, use it at your risks
 
-TOPLEVEL=$1
 
 usage() {
 	SCRIPT=$(basename $0)
@@ -111,57 +110,9 @@ get_last_snapshot() {
 	echo $LAST
 }
 
-# ------------------------------------ deprecated
-
-backup() {
-
-
-	local SNAPSHOT=$1
-
-	if [ -z "$SNAPSHOT" ]
-	then
-		SNAPSHOT=$NOW
-	fi
-
-	echo do a backup with snapshot $SNAPSHOT
-	for SNAP in $(list_snapshots $SNAPSHOT)
-	do
-		case $SNAP in
-			snapshots/*/@home)
-				# backup last snapshot (XXX: should use btrfs send to minimize changes)
-				# TODO: btrfs send /mnt/system-top-level/snapshots/2020-06-26/@ | btrfs receive /mnt/test/snapshots/
-				for USERHOME in $(ls $TOPLEVEL/$SNAP)
-				do
-					# security, should not occurs with a btrfs volume
-					[ "$USERHOME" = "lost+found" ] && continue
-
-					echo backuping @home/$USERHOME
-					rsync -ahx --delete --exclude=/.cache/ $TOPLEVEL/$SNAP/$USERHOME/ /mnt/backup/home/$USERHOME/
-				done
-				;;
-
-			snapshots/*/@)
-				echo "backuping /"
-				rsync -ahx --delete --exclude=/boot/ $TOPLEVEL/$SNAP/ /mnt/backup/root/
-
-				if mountpoint /boot >/dev/null
-				then
-					echo "backuping /boot"
-					rsync -ahx --delete  /boot/  /mnt/backup/root/boot/
-				fi
-				;;
-
-			*)
-				echo $SNAP snapshot not recognized
-				;;
-		esac
-
-	done
-
-}
-
 # ------------------------------------ main script
 
+TOPLEVEL="$1"
 if [ -z "$TOPLEVEL" ]
 then
 	usage
@@ -174,6 +125,7 @@ OFS=" "
 
 init
 
+#TODO: put this in configuration file ?
 HOURLY_PERIOD=60
 HOURLY_COUNT=2
 DAILY_PERIOD=$((60*24))
@@ -226,44 +178,4 @@ done
 
 echo situation
 list_snapshots
-
-# -------------------------------------------- no more used
-exit
-
-
-if [ -z "$RECENT" ]
-then
-	echo "do not have recent snapshot, snapshoting..."
-	snapshot $NOW
-	REQUEST_BACKUP=1
-else
-	echo "system has recent (< ${SNAPSHOT_PERIOD} days) snapshots ($RECENT), no need to snapshot"
-fi
-echo
-
-OLDSNAP=$(has_old_snapshots | tr '\n' ' ' | sed 's/ $//' )
-if [ -z "$OLDSNAP" ]
-then
-	echo "don't have old snapshot"
-else
-	echo "system has old (> ${MAX_SNAPSHOT} days) snapshots ($OLDSNAP)"
-	for OLD in $OLDSNAP
-	do
-
-		if ! [[ "$OLD" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] 
-		then
-			echo "keep $OLD (not in a date format) delete it manualy if necessary"
-			continue
-		fi
-
-		echo prepare deletion of $OLD
-		for SNAP in $(list_snapshots $OLD)
-		do
-			echo should delete $SNAP
-			echo TODO btrfs subvolume delete $TOPLEVEL/$SNAP
-		done
-		echo TODO rmdir $TOPLEVEL/snapshots/$OLD
-	done
-fi
-echo
 
