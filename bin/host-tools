@@ -10,6 +10,8 @@ ALLOW_ROOT_PASWORD="NO"
 MANDATORY_SERVICES=("ssh.service")
 MANDATORY_DOCKERS=()
 MANDATORY_FILES=()
+# FORMAT: file:exp-in-min
+FILES_AGE=()
 MANDATORY_PACKAGES=("openssh-server")
 FORBIDDEN_PACKAGES=()
 SILENT_RAID=()
@@ -43,6 +45,17 @@ NOTIFY=1
 LANG=C
 
 # ---------------------------------------- helpers
+
+ESC_GRA="\e[90m"
+ESC_RED="\e[91m"
+ESC_GRE="\e[92m"
+ESC_YEL="\e[93m"
+ESC_BLU="\e[94m"
+ESC_MAG="\e[95m"
+ESC_CYA="\e[96m"
+ESC_WHI="\e[97m"
+ESC_RST="\e[0m"
+
 
 urlencode() {
     # urlencode <string>
@@ -78,15 +91,22 @@ contains() {
 
 }
 
+explain() {
+	echo -e "${ESC_WHI}$*" $ESC_RST
+}
+abort() {
+	echo -e "${ESC_MAG}$*" $ESC_RST
+}
 
 alert() {
 	ALARM=1
-	logger -s -p user.crit -t "$SCRIPTNAME" -- "$*"
+	logger -p user.crit -t "$SCRIPTNAME" -- "$*"
+	echo -e "${ESC_RED}ALERT:" "$*" $ESC_RST
 	echo "$*" >>$REPORT
 }
 
 silent_alert() {
-	echo "SILENT ALERT:" "$*"
+	echo -e "${ESC_YEL}SILENT ALERT:" "$*" $ESC_RST
 	echo "$*" >>$REPORT
 }
 
@@ -236,7 +256,7 @@ check_no_root_password() {
 	[ "$ALLOW_ROOT_PASWORD" == "true" ] && echo "allow root password" && return
 	[ "$ALLOW_ROOT_PASWORD" == "TRUE" ] && echo "allow root password" && return
 
-	echo "checking no root password"
+	explain "checking no root password"
 
 	local ROOT_PASS=$(getent shadow root | cut -d : -f 2)
 	[ "$ROOT_PASS" != "*" ] && alert "this machine has a root password, please use ssh key"
@@ -244,11 +264,11 @@ check_no_root_password() {
 
 check_security_upgrade() {
 
-	echo checking security package to upgrade
+	explain "checking security package to upgrade"
 
         if ! which apt-get >/dev/null
         then
-               echo "apt-get not found, I only know debian systems [ignoring test]"
+               abort "apt-get not found, I only know debian systems [ignoring test]"
                return
         fi
 
@@ -279,7 +299,7 @@ check_packages() {
 	# FIXME should support alpine with apk
 	if ! which dpkg >/dev/null
 	then
-		echo "dpkg not found, I only know debian distribution [ignoring test]"
+		abort "dpkg not found, I only know debian distribution [ignoring test]"
 		return
 	fi
 
@@ -296,7 +316,7 @@ check_packages() {
 
 	if [ ${#MANDATORY_PACKAGES[@]} == 0 ]
         then
-               echo "no mandatory package in config"
+               abort "no mandatory package in config"
                return
         fi
 
@@ -327,7 +347,7 @@ check_packages() {
 
 check_cpusanity() {
 
-	echo "check load avg in 15min"
+	explain "check load avg in 15min"
 	LOADAVG=$(cat /proc/loadavg | awk '{print $3}')
         LOADAVG_ROUNDED=$( echo $LOADAVG | awk '{ print int($1+0.5) }')
 	CPUCOUNT=$(grep -c ^processor /proc/cpuinfo)
@@ -337,7 +357,7 @@ check_cpusanity() {
 		alert "cpu loadavg (on 15min) is high: $LOADAVG (cpu count: $CPUCOUNT)"
 	fi
 
-	echo "check for blocked processes (in IOWait for example)"
+	explain "check for blocked processes (in IOWait for example)"
 	PROCSBLOCKED=$(grep procs_blocked /proc/stat | awk '{print $2}')
 	if [ $PROCSBLOCKED -gt 5 ] 
 	then
@@ -349,7 +369,7 @@ check_cpusanity() {
 
 check_oomkilled() {
 
-	if ( dmesg -T | grep -E -i 'killed process|out of memory' > /tmp/oom.list )
+	if ( grep -E -i 'killed process|out of memory' /var/log/messages > /tmp/oom.list )
 	then
 		alert "found out of memory processes " $(tail -n 1 /tmp/oom.list)
 	fi
@@ -357,13 +377,47 @@ check_oomkilled() {
 	rm -f /tmp/oom.list
 }
 
+check_file_age() {
+
+        if [ ${#FILES_AGE[@]} == 0 ]
+        then
+               abort "no file's age to check"
+               return
+        fi
+
+	# check containers are running 
+	for ELEMENT in ${FILES_AGE[@]}
+	do
+		local EXPIRES=60
+		local FILE="$ELEMENT"
+
+		if [[ "$ELEMENT" =~ : ]]
+		then
+			EXPIRES=${ELEMENT#*:}
+			FILE=${ELEMENT%:*}
+		fi
+
+		explain "checking $FILE is not older than $EXPIRES minutes"
+
+		local NOW=$(date '+%s')
+		local FILE_AGE=$(( ( $NOW - $(stat -c '%Y' $FILE) ) / 60 ))
+
+		if [ $FILE_AGE -le $EXPIRES ]
+		then
+			echo "file $FILE is less than $EXPIRES min old"
+		else
+			alert "file $FILE is too old ($FILE_AGE min old)"
+		fi
+	done
+}
+
 check_services() {
 
-	echo "checking systemd services status"
+	explain "checking systemd services status"
 
         if ! which systemctl >/dev/null
         then
-               echo "systemctl not found (system is not running using systemd ?) [ignoring test]"
+               abort "systemctl not found (system is not running using systemd ?) [ignoring test]"
                return
         fi
 
@@ -399,7 +453,7 @@ check_disk_sectors() {
 
         if ! which smartctl >/dev/null
         then
-               echo "smartctl not installed (fix: apt-get install smartmontools) [ignoring test]"
+               abort "smartctl not installed (fix: apt-get install smartmontools) [ignoring test]"
                return
         fi
 
@@ -416,7 +470,7 @@ check_disk_sectors() {
         for DISK in $( find_disks)
 	do
 		SHORT="${DISK##*/}"
-		echo "checking disk $DISK"
+		explain "checking disk $DISK"
 		if [ -e "/sys/block/$SHORT/queue/rotational" ]
 		then
 			if [ $(cat "/sys/block/$SHORT/queue/rotational") == 1 ]
@@ -525,7 +579,7 @@ check_partition_space() {
 		IPCENT=${IPCENT%?}
 		PCENT=${PCENT%?}
 
-		echo checking partition $PARTITION
+		explain "checking partition $PARTITION"
 
 		if [ $PCENT -ge $DISKLIMIT ]
 		then
@@ -552,7 +606,7 @@ check_docker() {
 
         if [ ${#MANDATORY_DOCKERS[@]} == 0 ]
         then
-               echo "no docker image in config"
+               abort "no docker image in config"
                return
         fi
 
@@ -565,7 +619,7 @@ check_docker() {
 	# check containers are running 
 	for INSTANCE in ${MANDATORY_DOCKERS[@]}
 	do
-		echo checking that mandatory docker $INSTANCE running
+		explain "checking that mandatory docker $INSTANCE running"
 		if [[ $(docker inspect -f '{{.State.Running}}' $INSTANCE 2>/dev/null) != "true" ]]
 		then
 			alert "mandatory container $INSTANCE not running"
@@ -578,7 +632,7 @@ check_docker() {
                        continue
                fi
 
-		echo checking container $INSTANCE security
+		explain "checking container $INSTANCE security"
 		# container is running, check if need upgrade/a rebuilt
 
 		DISTRIBUTION=$(docker container exec $INSTANCE /bin/sh -c 'grep ^ID= /etc/os-release' | cut -d "=" -f 2)
@@ -586,7 +640,7 @@ check_docker() {
 		case $DISTRIBUTION in
 
 			debian)
-				echo "$INSTANCE is a debian"
+				echo "$INSTANCE is a debian $DISTRIBUTION"
 
 				docker container exec $INSTANCE /bin/sh -c 'apt-get update >/dev/null 2>/dev/null; apt-get upgrade -s; apt-get clean; rm -rf /var/lib/apt/lists/*' >"/tmp/container-$INSTANCE.package-upgrade"
 				if grep -i security "/tmp/container-$INSTANCE.package-upgrade"
@@ -615,6 +669,10 @@ check_docker() {
 				rm -f "/tmp/container-$INSTANCE.package-upgrade"
 
 				;;
+			ubuntu)
+				# FIXME: should not ignore but check that container can go outside
+				abort "ignoring $INSTANCE ubuntu"
+				;;
 			*)
 				alert "$INSTANCE is an unknown distribution ($DISTRIBUTION)"
 				;;
@@ -623,7 +681,7 @@ check_docker() {
 
 	done
 
-	echo check for looping containers
+	explain "check for looping containers"
 	for INSTANCE in $(docker ps --format '{{.Names}}')
 	do 
 		local RESTARTCOUNT=$(docker inspect -f '{{.RestartCount}}' $INSTANCE)
@@ -634,14 +692,14 @@ check_docker() {
 		fi
 	done
 
-	echo check for dead containers 
+	explain "check for dead containers" 
 	for INSTANCE in $(docker container ls -a --format "{{.Names}}" --filter "status=dead")
 	do
 		local do_alert="alert"
 		$do_alert "container $INSTANCE is dead"
 	done
 
-	echo check for OOMKilled containers
+	explain "check for OOMKilled containers"
 	for INSTANCE in $(docker ps --filter "status=dead" --filter "status=exited" --format '{{.Names}}')
 	do
 		if [ $(docker inspect -f '{{.State.OOMKilled}}' $INSTANCE 2>/dev/null) == "true" ]
@@ -651,7 +709,7 @@ check_docker() {
 		fi
 	done
 
-	echo check for unhealthy containers 
+	explain "check for unhealthy containers" 
 	for INSTANCE in $(docker container ls --format "{{.Names}}" --filter "health=unhealthy")
 	do
 		local do_alert="alert"
@@ -669,7 +727,7 @@ check_raid() {
 
 	if [ ! -f '/proc/mdstat' ]
 	then
-		echo "no raid (soft) found ignore test"
+		abort "no raid (soft) found ignore test"
 		return 0
 	fi
 
@@ -718,7 +776,7 @@ check_file_exists() {
 
 	for FILE in ${MANDATORY_FILES[@]}
 	do
-		echo check that $FILE exists
+		explain "checking that $FILE exists"
 		[ -e $FILE ] || alert "$FILE does not exist, please check"
 
 	done
@@ -753,7 +811,7 @@ check_farm() {
 	local found=0
         for SERVER in "${HOSTS[@]}"
 	do
-		echo "checking server $SERVER (ping)"
+		explain "checking server $SERVER (ping)"
 		found=1
 
                 if [ "$SERVER" == "$HOSTNAME" ]
@@ -786,7 +844,7 @@ check_ssl() {
 
         if [ ${#SSL_CONNECTIONS[@]} == 0 ]
         then
-               echo "no ssl check to perform"
+               abort "no ssl check to perform"
                return
         fi
 
@@ -804,7 +862,7 @@ check_ssl() {
 		local PORT="${CONNECTION#*:}"
 		test -z "$PORT" && PORT=443
 
-		echo checking $FQDN port $PORT
+		explain "checking $FQDN port $PORT"
 
 		local SSL=$(openssl s_client -servername $FQDN -host $FQDN -port $PORT </dev/null 2>/dev/null | openssl x509 -noout -noout -checkend $((3600*24*$SSL_PREVENTION_EXPIRATION)) -ext subjectAltName | tail -n +2)
 
@@ -834,7 +892,7 @@ check_rbl() {
 	"
         if [ ${#IP_RBLCHECK[@]} == 0 ]
         then
-               echo "no ssl check to perform"
+               abort "no ssl check to perform"
                return
         fi
 
@@ -892,7 +950,7 @@ cmd_full_check() {
 	# execute all check_* functions
 	for CHECK in $(compgen -A function | grep ^check_ | sort)
 	do
-		echo "== $CHECK =="
+		echo -e "$ESC_CYA== $CHECK ==$ESC_RST"
 		$CHECK
 		echo
 	done
@@ -900,8 +958,16 @@ cmd_full_check() {
 	if [ "$ALARM" != "0" ] 
 	then
 		notify "please check $HOSTNAME, last error: $(tail -n 1 $REPORT)"
+
+		echo
+		echo -e "${ESC_RED}please check $HOSTNAME, got issues${ESC_RST}"
+
 	else
-		logger -s -p user.info -t $SCRIPTNAME -- "full check sucess"
+		logger -p user.info -t $SCRIPTNAME -- "full check sucess"
+
+		echo
+		echo -e "${ESC_GRE}full check sucess${ESC_RST}"
+
 		echo "$SCRIPTNAME full-check success at "$(date) >>$REPORT
 
 		if [ -f $REPORT.prev ]
@@ -925,7 +991,7 @@ cmd_install_packages() {
 
 	if [ ${#MANDATORY_PACKAGES[@]} == 0 ]
         then
-               echo "no mandatory package in config"
+               abort "no mandatory package in config"
 	       unlock
                return 1
         fi
