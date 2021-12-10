@@ -84,7 +84,7 @@ init() {
 
        # ensure net_cls is present
        test -d /sys/fs/cgroup/net_cls || mkdir /sys/fs/cgroup/net_cls
-       grep -q "net_cls /sys/fs/cgroup/net_cls" /proc/mounts || mount -t cgroup -onet_cls net_cls /sys/fs/cgroup/net_cls
+       mountpoint -q /sys/fs/cgroup/net_cls || mount -t cgroup -onet_cls net_cls /sys/fs/cgroup/net_cls
 
 	# prepare cgroup to tag network with a classid
 	test -d /sys/fs/cgroup/net_cls/$TABLE || mkdir /sys/fs/cgroup/net_cls/$TABLE
