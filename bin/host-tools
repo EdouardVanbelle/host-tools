@@ -766,6 +766,7 @@ check_mount_points() {
 			fi
 			DATA=$TARGET
 		fi
+		explain "checking partition $DATA is mounted"
 
 		mountpoint -q $DATA || alert "$DATA not mounted"
 	done
