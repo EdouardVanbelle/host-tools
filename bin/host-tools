@@ -400,6 +400,12 @@ check_file_age() {
 
 		explain "checking $FILE is not older than $EXPIRES minutes"
 
+               if [ ! -e $FILE ]
+               then
+                       alert "file $FILE is does not exist"
+                       continue
+               fi
+
 		local NOW=$(date '+%s')
 		local FILE_AGE=$(( ( $NOW - $(stat -c '%Y' $FILE) ) / 60 ))
 
