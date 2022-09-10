@@ -352,7 +352,8 @@ check_cpusanity() {
         LOADAVG_ROUNDED=$( echo $LOADAVG | awk '{ print int($1+0.5) }')
 	CPUCOUNT=$(grep -c ^processor /proc/cpuinfo)
 
-	if [ $LOADAVG_ROUNDED -ge $CPUCOUNT ]
+	# Alert on round(LOADAVG) > #CPU+1
+	if [ $LOADAVG_ROUNDED -gt $(($CPUCOUNT+1)) ]
 	then
 		alert "cpu loadavg (on 15min) is high: $LOADAVG (cpu count: $CPUCOUNT)"
 	fi
