@@ -810,7 +810,7 @@ check_mmc_health() {
 				alert "mmc disk $DISK enter in his end of life (warning status)"
 			fi
 		else
-               		abort "no eMMC information [cannot perfor test]"
+               		abort "no eMMC information [cannot perform test]"
 		fi
 
 		rm -f /tmp/mmc.health
