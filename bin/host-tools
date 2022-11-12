@@ -431,6 +431,26 @@ check_kernel_crit_message() {
 
 }
 
+sensor_check() {
+       local NAME="$1"
+       local INPUT=$2
+       local MAX=$3
+
+       if [ -z "$MAX" ]
+       then
+               echo "sensor '$NAME' seems ok ($INPUT without MAX value)"
+               return
+       fi
+
+       if [ $INPUT -lt $MAX ]
+       then
+               echo "sensor '$NAME' is ok ($INPUT < $MAX)"
+       else
+               alert "sensor '$NAME' has reached the max value ($INPUT > $MAX)"
+       fi
+
+}
+
 check_sensors() {
 	
 	explain "checking sensors (like temperature)"
@@ -450,32 +470,42 @@ check_sensors() {
 
 	local PREV_IFS="$IFS"
 	local IFS=""
-	local HEADER
+       local NAME
 	local INPUT
 	local MAX
 	while read -r LINE
 	do
 		if [ -z $LINE ]
 		then
+                       # new line maybe we have a value
+                       if [ -n "$NAME" ] && [ -n "$INPUT" ]
+                       then
+                               if [[ $NAME =~ temp ]]
+                               then
+                                       MAX=80
+                               fi
+                               sensor_check "$NAME" $INPUT $MAX
+                       fi
+
 			# clean values for next reading
-			HEADER=""
+                       NAME=""
 			INPUT=""
 			MAX=""
 		fi
 
 		if [[ "$LINE" =~ ^[A-Za-z] ]]
 		then
-			if [ -z "$HEADER" ] 
+                       if [ -z "$NAME" ]
 			then
-				HEADER=$LINE
+                               NAME=$LINE
 			else
-				HEADER="$HEADER > "$LINE
+                               NAME="$NAME > "$LINE
 			fi
 		elif [[ "$LINE" =~ ^(  .*_input:) ]]
 		then
 			# append sensor prefix to header
-			local NAME=${LINE%%_input*}
-			HEADER="$HEADER > ${NAME## * }"
+                       local LNAME=${LINE%%_input*}
+                       NAME="$NAME > ${LNAME## * }"
 			# prinft %.0f = round value (precision to 0 decimal)
 			INPUT=$(printf "%.0f" ${LINE#*: })
 		elif [[ "$LINE" =~ ^(  .*_max:) ]]
@@ -484,17 +514,12 @@ check_sensors() {
 			MAX=$(printf "%.0f" ${LINE#*: })
 		fi
 
-		if [ -n "$HEADER" ] && [ -n "$INPUT" ] && [ -n "$MAX" ]
+               if [ -n "$NAME" ] && [ -n "$INPUT" ] && [ -n "$MAX" ]
 		then
-			if [ $INPUT -lt $MAX ]
-			then
-				echo "sensor '$HEADER' is ok ($INPUT < $MAX)"
-			else
-				alert "sensor '$HEADER' has reached the max value ($INPUT > $MAX)"
-			fi
+                       sensor_check "$NAME" $INPUT $MAX
 
 			# clean values for next reading
-			HEADER=""
+                       NAME=""
 			INPUT=""
 			MAX=""
 		fi
