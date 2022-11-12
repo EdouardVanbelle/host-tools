@@ -447,7 +447,59 @@ check_sensors() {
 		alert "sensors not present, on debian you can install lm-sensors [ignoring test]"
 	fi
 
+	local PREV_IFS="$IFS"
+	local IFS=""
+	local HEADER
+	local INPUT
+	local MAX
+	while read -r LINE
+	do
+		if [ -z $LINE ]
+		then
+			# clean values for next reading
+			HEADER=""
+			INPUT=""
+			MAX=""
+		fi
 
+		if [[ "$LINE" =~ ^[A-Za-z] ]]
+		then
+			if [ -z "$HEADER" ] 
+			then
+				HEADER=$LINE
+			else
+				HEADER="$HEADER > "$LINE
+			fi
+		elif [[ "$LINE" =~ ^(  .*_input:) ]]
+		then
+			# append sensor prefix to header
+			local NAME=${LINE%%_input*}
+			HEADER="$HEADER > ${NAME## * }"
+			# prinft %.0f = round value (precision to 0 decimal)
+			INPUT=$(printf "%.0f" ${LINE#*: })
+		elif [[ "$LINE" =~ ^(  .*_max:) ]]
+		then
+			# prinft %.0f = round value (precision to 0 decimal)
+			MAX=$(printf "%.0f" ${LINE#*: })
+		fi
+
+		if [ -n "$HEADER" ] && [ -n "$INPUT" ] && [ -n "$MAX" ]
+		then
+			if [ $INPUT -lt $MAX ]
+			then
+				echo "sensor '$HEADER' is ok ($INPUT < $MAX)"
+			else
+				alert "sensor '$HEADER' has reached the max value ($INPUT > $MAX)"
+			fi
+
+			# clean values for next reading
+			HEADER=""
+			INPUT=""
+			MAX=""
+		fi
+
+	done < <( sensors -u )
+	IFS="$PREV_IFS"
 }
 
 check_oomkilled() {
