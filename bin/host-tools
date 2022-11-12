@@ -368,10 +368,57 @@ check_cpusanity() {
 
 }
 
+check_crit_message() {
+
+	explain "check critical kernel message since 3 days"
+
+	if ! which journalctl >/dev/null
+	then
+		# note: could also use dmesg
+		abort "journalctl not found [ignoring test]"
+		return
+	fi
+
+	# -p2 = alert & crit
+	journalctl -b -k -e -p2 -q -x --no-pager --since="$(date --iso --date='3day ago')" >/tmp/critmsg
+
+	# if file is non empty
+	if [ -s /tmp/critmsg ]
+	then
+		cat /tmp/critmsg
+		alert "found critical kernel message " $(tail -n 1 /tmp/critmsg)
+	fi
+
+	rm -f /tmp/critmsg
+
+}
+
 check_oomkilled() {
 
-	if ( grep -E -i 'killed process|out of memory' /var/log/messages > /tmp/oom.list )
+	explain "check oomkilled process since 1 day"
+
+	if which journalctl >/dev/null
+	then	
+		# try via systemctl
+		# -p4 = warning
+		journalctl -b -k -e -p4 -x -q --no-pager --since="$(date --iso --date='1day ago')" | grep -E -i 'killed process|out of memory' > /tmp/oom.list
+	elif [ -e /var/log/kern.log ]
 	then
+		# try via messages
+		grep -E -i 'killed process|out of memory' /var/log/kern.log > /tmp/oom.list
+	elif [ -e /var/log/messages ]
+	then
+		# try via messages
+		grep -E -i 'killed process|out of memory' /var/log/messages > /tmp/oom.list
+	else
+		abort "neither journalctl nor kern.log/messages where found, cannot check oomkilled [ignoring test]"
+		return
+	fi
+
+	# if file is non empty
+	if [ -s /tmp/oom.list ]
+	then
+		cat /tmp/oom.list
 		alert "found out of memory processes " $(tail -n 1 /tmp/oom.list)
 	fi
 
