@@ -223,11 +223,19 @@ unlock() {
 
 # will return all HDD/SSD: sda sdb ...
 find_disks() {
+
+	# can be sd or mmc
+	local LOOKUP=$1
+	if [ -z $LOOKUP ]
+	then
+		LOOKUP="sd"
+	fi
+
         local DISKSMAJORS=""
 
         while read -r MAJOR TYPE
         do
-                if [ "$TYPE" == "sd" ];
+                if [ "$TYPE" == "$LOOKUP" ];
                 then
                         if [ -z "$DISKSMAJORS" ]
                         then
@@ -238,17 +246,25 @@ find_disks() {
                 fi
         done </proc/devices
 
+	local LASTLABEL=""
+
         # keep only disks (minor are multiple of 16)
         while read -r MAJOR MINOR LABEL STATS
         do
                 if [[ "$MAJOR" =~ ^($DISKSMAJORS)$ ]] && [ $(( $MINOR % 16 )) -eq 0 ]
                 then
+
+			# check that label does not start with previous match (means already found)
+			if [ "$LOOKUP" == "mmc" ] && [ ! -z $LASTLABEL ] && [[ "$LABEL" =~ ^($LASTLABEL) ]]
+			then
+			       continue
+			fi
+			LASTLABEL="$LABEL"
                         echo $LABEL
                 fi
 
         done </proc/diskstats
 }
-
 
 # ---------------------------------------- checks
 
@@ -568,10 +584,10 @@ check_disk_health() {
         #fi
 
 	# foreach disk
-        for DISK in $( find_disks)
+        for DISK in $( find_disks sd)
 	do
 		SHORT="${DISK##*/}"
-		explain "checking disk $DISK"
+		explain "checking sd disk $DISK"
 		if [ -e "/sys/block/$SHORT/queue/rotational" ]
 		then
 			if [ $(cat "/sys/block/$SHORT/queue/rotational") == 1 ]
@@ -678,6 +694,57 @@ check_disk_health() {
 
 		done < <( smartctl -A /dev/$DISK 2>/dev/null )
 	done
+}
+
+check_mmc_health() {
+
+	# source: https://developer.toradex.com/linux-bsp/how-to/boot/emmc-linux/
+
+	# Device life time estimation type A: life time estimation for the MLC user partition eraseblocks, provided in steps of 10%, e.g.:
+	#   0x02 means 10%-20% device life time used.
+	# Device life time estimation type B: life time estimation for the SLC boot partition eraseblocks, provided in steps of 10%, e.g.:
+	#   0x02 means 10%-20% device life time used.
+	# Pre EOL information: overall status for reserved blocks. Possible values are:
+	#   0x00 - Not defined.
+	#   0x01 - Normal: consumed less than 80% of the reserved blocks.
+	#   0x02 - Warning: consumed 80% of the reserved blocks.
+	#   0x03 - Urgent: consumed 90% of the reserved blocks.
+
+	if detect_virt
+	then
+               abort "this is a virtual machine, test is not relevant [ignoring test]"
+	       return
+	fi
+
+        if ! which mmc >/dev/null
+        then
+               abort "mmc not installed (fix: apt-get install mmc-utils) [ignoring test]"
+               return
+        fi
+
+	# foreach disk
+        for DISK in $( find_disks mmc)
+	do
+
+		explain "checking mmc disk $DISK"
+
+		mmc extcsd read /dev/$DISK | grep ^eMMC >/tmp/mmc.health
+		cat /tmp/mmc.health
+
+		EOL=$(grep EXT_CSD_PRE_EOL_INFO /tmp/mmc.health | sed 's/.*: 0x//')
+
+		if [ $((16#$EOL)) -gt 2 ]
+		then
+			alert "mmc disk $DISK enter in his end of life (critical status)"
+		elif [ $((16#$EOL)) -gt 1 ]
+		then
+			alert "mmc disk $DISK enter in his end of life (warning status)"
+		fi
+
+		rm -f /tmp/mmc.health
+
+	done
+
 }
 
 check_partition_space() {
@@ -833,7 +900,7 @@ check_last_backup() {
 
 check_raid() {
 
-	if detect_virt 
+	if detect_virt
 	then
                abort "this is a virtual machine, test is not relevant [ignoring test]"
 	       return
