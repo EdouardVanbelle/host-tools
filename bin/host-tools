@@ -57,6 +57,27 @@ ESC_CYA="\e[96m"
 ESC_WHI="\e[97m"
 ESC_RST="\e[0m"
 
+IS_VM=""
+
+# purpose is to detect if we are on a virtual machine (some tests are not relevant on VM)
+detect_virt() {
+
+	if [ -z $IS_VM ]
+	then
+		if which systemd-detect-virt >/dev/null
+		then
+			systemd-detect-virt -v -q
+			IS_VM=$?
+		else
+
+			grep -q -E -i '^(qemu|kvm|zvm|vmware|microsoft|oracle|powervm|xen|bochs|uml|parallels|bhyve|qnx|acrn)' /sys/class/dmi/id/board_vendor
+			IS_VM=$?
+		fi
+	fi
+
+	return $IS_VM
+}
+
 
 urlencode() {
     # urlencode <string>
@@ -369,7 +390,7 @@ check_cpusanity() {
 
 }
 
-check_crit_message() {
+check_kernel_crit_message() {
 
 	explain "check critical kernel message since 3 days"
 
@@ -391,6 +412,25 @@ check_crit_message() {
 	fi
 
 	rm -f /tmp/critmsg
+
+}
+
+check_sensors() {
+	
+	explain "checking sensors (like temperature)"
+
+	if detect_virt 
+	then
+               abort "this is a virtual machine, test is not relevant [ignoring test]"
+	       return
+	fi
+
+
+	if ! which sensors >/dev/null
+	then
+		alert "sensors not present, on debian you can install lm-sensors [ignoring test]"
+	fi
+
 
 }
 
@@ -504,7 +544,13 @@ check_services() {
 	done
 }
 
-check_disk_sectors() {
+check_disk_health() {
+
+	if detect_virt 
+	then
+               abort "this is a virtual machine, test is not relevant [ignoring test]"
+	       return
+	fi
 
         if ! which smartctl >/dev/null
         then
@@ -606,7 +652,7 @@ check_disk_sectors() {
 					#id=194 Temperature_Celsius
                                         RAW_VALUE="${RAW_VALUE%% *}" # remove all YY in "XX YY"
 					echo "INFO: Temperature Celsius: $RAW_VALUE"
-					[ $RAW_VALUE -gt $BADTEMPLIMIT ] && $do_alert "$DISK has temp $RAW_VALUE too high";
+					[ $RAW_VALUE -gt $BADTEMPLIMIT ] && $do_alert "$DISK has temperature $RAW_VALUE too high";
 					;;
 
 				"196")
@@ -786,6 +832,13 @@ check_last_backup() {
 
 
 check_raid() {
+
+	if detect_virt 
+	then
+               abort "this is a virtual machine, test is not relevant [ignoring test]"
+	       return
+	fi
+
 
 	if [ ! -f '/proc/mdstat' ]
 	then
