@@ -6,6 +6,7 @@
 
 DISKLIMIT=75
 BADSECTORLIMIT=0
+BADTEMPLIMIT=50
 ALLOW_ROOT_PASWORD="NO"
 MANDATORY_SERVICES=("ssh.service")
 MANDATORY_DOCKERS=()
@@ -596,9 +597,16 @@ check_disk_sectors() {
 
 				"188")
 					#id=188 "Command Timeout"
-                                       RAW_VALUE="${RAW_VALUE%% *}" # remove all YY in "XX YY"
+                                        RAW_VALUE="${RAW_VALUE%% *}" # remove all YY in "XX YY"
 					echo "INFO: Reported command timeout: $RAW_VALUE"
 					[ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE command timeout";
+					;;
+
+				"194")
+					#id=194 Temperature_Celsius
+                                        RAW_VALUE="${RAW_VALUE%% *}" # remove all YY in "XX YY"
+					echo "INFO: Temperature Celsius: $RAW_VALUE"
+					[ $RAW_VALUE -gt $BADTEMPLIMIT ] && $do_alert "$DISK has temp $RAW_VALUE too high";
 					;;
 
 				"196")
