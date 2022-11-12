@@ -444,7 +444,8 @@ check_sensors() {
 
 	if ! which sensors >/dev/null
 	then
-		alert "sensors not present, on debian you can install lm-sensors [ignoring test]"
+               abort "sensors not present, (on debian: apt-get install lm-sensors) [ignoring test]"
+               return
 	fi
 
 	local PREV_IFS="$IFS"
