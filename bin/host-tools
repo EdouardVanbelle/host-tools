@@ -568,6 +568,12 @@ check_disk_health() {
 	       return
 	fi
 
+	if [ -z "$(find_disks sd)" ]
+	then
+               abort "no SSD/HD found [ignoring test]"
+	       return
+	fi
+
         if ! which smartctl >/dev/null
         then
                abort "smartctl not installed (fix: apt-get install smartmontools) [ignoring test]"
@@ -713,6 +719,12 @@ check_mmc_health() {
 	if detect_virt
 	then
                abort "this is a virtual machine, test is not relevant [ignoring test]"
+	       return
+	fi
+
+	if [ -z "$(find_disks mmc)" ]
+	then
+               abort "no MMC found [ignoring test]"
 	       return
 	fi
 
