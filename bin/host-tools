@@ -1210,6 +1210,58 @@ check_rbl() {
 	done
 }
 
+check_net_devices() {
+       echo checking network devices
+
+       if detect_virt
+       then
+               abort "this is a virtual machine, test is not relevant [ignoring test]"
+              return
+       fi
+
+       if [ ! -e /sys/class/net ]
+       then
+               abort "no /sys/class/net found [ignore network check]"
+               return
+       fi
+
+       local DEVICE
+       local current=$(pwd)
+       cd /sys/class/net
+
+       for DEVICE in *
+       do
+               # keep only physical devices
+	       # FIXME: should check phydev ?
+               test -e $DEVICE/device || continue
+
+	       explain "checking physical device $DEVICE"
+
+               local IS_UP=$(cat $DEVICE/carrier 2>/dev/null)
+
+	       if [ "$IS_UP" != "1" ]
+	       then
+		       echo "device $DEVICE is not connected"
+		       # FIXME: check if must be connected
+		       continue
+	       fi
+
+               local TX_ERROR=$(cat $DEVICE/statistics/tx_errors)
+               local RX_ERROR=$(cat $DEVICE/statistics/rx_errors)
+               local COLLISION=$(cat $DEVICE/statistics/collisions)
+
+	       if [ \( $TX_ERROR -gt 0 \) -o \( $RX_ERROR -gt 0 \) -o \( $COLLISION -gt 0 \) ]
+	       then
+		       alert "device $DEVICE has communication errors ($TX_ERROR TX errors, $RX_ERROR RX errors, $COLLISION collisions)"
+	       else
+		       echo "device $DEVICE is in good health (no error, no collision)"
+	       fi
+
+       done
+
+       cd $current
+}
+
 # ---------------------------------------- commands
 
 cmd_check_list() {
