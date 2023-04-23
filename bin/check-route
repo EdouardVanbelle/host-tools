@@ -11,7 +11,8 @@ ROUTE_DEFINED=""
 
 CURRENT_ROUTE=$(ip route show default | grep -v metric | sed 's/[[:blank:]]*$//')
 
-WEBHOOK='https://api.telegram.org/bot767207368:AAF3ctJun865OQx0SublNFHd85ZpJcMTiFg/sendMessage?chat_id=342643287&text='
+source /etc/host-tools.conf
+#WEBHOOK=....
 
 urlencode() {
     # urlencode <string>
