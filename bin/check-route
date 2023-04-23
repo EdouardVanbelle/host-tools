@@ -1,0 +1,137 @@
+#!/bin/sh 
+
+# status: work in progress
+# use for switch correct route (example: when default internet is down, use backup system)
+
+MODE="$1"
+
+echo mode "$MODE"
+
+ROUTE_DEFINED=""
+
+CURRENT_ROUTE=$(ip route show default | grep -v metric | sed 's/[[:blank:]]*$//')
+
+WEBHOOK='https://api.telegram.org/bot767207368:AAF3ctJun865OQx0SublNFHd85ZpJcMTiFg/sendMessage?chat_id=342643287&text='
+
+urlencode() {
+    # urlencode <string>
+    local old_lc_collate=$LC_COLLATE
+    LC_COLLATE="C"
+
+    local length="${#1}"
+    for i in $(seq 0 $length)
+    do
+        local c="${1:i:1}"
+        case $c in
+            [a-zA-Z0-9.~_-]) printf "$c" ;;
+            *)               printf '%%%02X' "'$c" ;;
+        esac
+    done
+
+    LC_COLLATE=$old_lc_collate
+}
+
+notify() {
+
+        local message=$( urlencode "$*")
+
+        if [ -z "$WEBHOOK" ]
+        then
+                alert "WEBHOOK not defined, cannot notify"
+                return 1
+        fi
+
+        curl -s -q "${WEBHOOK}${message}" >/dev/null
+
+}
+
+for IFACE in eth0.3 eth0.4 
+do
+
+	echo
+	echo "------- checking $IFACE"
+
+	ADDR=$(ip -f inet addr show $IFACE 2>/dev/null | awk '/inet / {print $2}' | cut -d / -f 1 )
+
+	if [ -z "$ADDR" ]
+	then
+		echo "$IFACE is not defined"
+		continue
+	fi
+
+	echo "checking $IFACE via $ADDR"
+
+	TABLE=$(ip rule show | grep $ADDR | head -n 1 | sed 's/.*lookup //')
+
+	echo "table $TABLE"
+
+	ROUTE=$(ip route show default table $TABLE | sed 's/ proto.*//')
+
+	if [ -z "$ROUTE" ]
+	then
+		echo "ERR: unable to get default route for $IFACE"
+		continue
+	fi
+
+	GATEWAY=$(echo "$ROUTE" | awk '{print $3}')
+	echo "gateway: $GATEWAY"
+
+	TARGET=$(dig +short A ifconfig.me "@"$GATEWAY 2>/dev/null)
+
+	if [ $? -ne 0 ]
+	then
+		echo "ERR: $IFACE broken (unable to get ifconfig.me IP's)"
+		[ "$MODE" = "full" ] && notify "OTB Lille: $IFACE has no internet connection"
+		continue
+	fi
+
+	# pick up only 1 IP
+	TARGET=$(echo $TARGET | sed 's/ .*//')
+
+	echo "ifconfig.me's IP is $TARGET"
+
+	IPOUT=$(curl --connect-timeout 3 --interface $IFACE --header 'Host: ifconfig.me' $TARGET 2>/dev/null)
+
+	if [ $? -ne 0 ]
+	then
+		echo "$IFACE is broken (unable to query http://ifconfig.me)"
+		[ "$MODE" = "full" ] && notify "OTB Lille: $IFACE has no internet connection"
+	fi
+
+	echo "$IFACE has internet connection (outgoing IP is $IPOUT)"
+
+	if [ ! -z "$ROUTE_DEFINED" ] 
+	then
+		# default route already defined
+		continue
+	fi
+
+	if [ "$ROUTE" != "$CURRENT_ROUTE" ]
+	then
+		echo "route changed: defining default route to: $ROUTE"
+		ip route del default 2>/dev/null
+		ip route add $ROUTE
+
+		case "$MODE" in
+			boot)
+				notify "OTB Lille: recent boot, setup route to $IFACE"
+				;;
+			*)
+				notify "OTB Lille: change route to $IFACE"
+				;;
+		esac
+				
+	else
+		echo "route remains the same (no change)"
+	fi
+
+	ROUTE_DEFINED="$ROUTE"
+
+done
+
+if [ -z "$ROUTE_DEFINED" ] 
+then
+	echo "oops no default route defined"
+fi
+
+
