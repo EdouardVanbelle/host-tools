@@ -1034,6 +1034,8 @@ check_raid() {
 
 check_github_releases() {
 
+	# TODO: check for future: https://forums.docker.com/t/how-can-i-list-tags-for-a-repository/32577/8 (verify tag list on github) 
+
         if [ ${#GITHUB_RELEASES[@]} == 0 ]
 	then
                abort "no release to check"
@@ -1054,6 +1056,11 @@ check_github_releases() {
 
  	local NOW=$(date +'%s')
 
+	# FIXME: change OWNER|REPO|RELEASE to OWNER/REPO:RELEASE  (more conventional)
+	# FIXME: move cache to $LIBDIR/cache
+	# FIXME: periodic clean up of cache directory
+	# FIXME: setup a release on this directory...
+
 
 	for GITHUB_RELEASE in ${GITHUB_RELEASES[@]}
 	do
@@ -1061,7 +1068,8 @@ check_github_releases() {
 		local REPO=$(echo $GITHUB_RELEASE | cut -d '|' -f 2)
 		local CURRENT_RELEASE=$(echo $GITHUB_RELEASE | cut -d '|' -f 3)
 
-		echo "checking github $OWNER/$REPO with release $CURRENT_RELEASE"
+		echo
+		explain "checking github $OWNER/$REPO, current release $CURRENT_RELEASE"
 
 		URL="https://api.github.com/repos/$OWNER/$REPO/releases/latest" 
 
@@ -1074,17 +1082,17 @@ check_github_releases() {
 			local CTIME=$(stat -c '%Y' $CACHE)
 			if [ $[ $NOW - $CTIME ] -gt $[ 3600 * 24 * 7 ] ] 
 			then
-				explain "$CACHE is older than a week, refresh it"
+				echo "$CACHE is older than a week, refresh it"
 				rm -f $CACHE
 			else
-				explain "using cache $CACHE"
+				echo "using cache $CACHE"
 				do_alert="silent_alert"
 			fi
 		fi
 
 		if [ ! -e $CACHE ]
 		then	
-			explain "fetching $URL to $CACHE"
+			echo "fetching $URL to $CACHE"
 			curl -s -H 'User-Agent: host-tools' -H 'Accept: application/vnd.github+json' $URL > $CACHE
 		fi
 
@@ -1092,7 +1100,7 @@ check_github_releases() {
 
 		if [ "$ERROR" != "null" ]
 		then
-			$do_alert "github check: error reading api: $ERROR"
+			$do_alert "github check $OWNER/$REPO: error reading api: $ERROR"
 			rm -f $CACHE
 			continue
 		fi
@@ -1101,7 +1109,7 @@ check_github_releases() {
 
 		if [ -z "$RELEASE" ] 
 		then
-			$do_alert "github check: unable to parse $CACHE"
+			$do_alert "github check $OWNER/$REPO: unable to parse $CACHE"
 			continue
 		fi
 
@@ -1111,7 +1119,7 @@ check_github_releases() {
 			continue
 		fi
 
-		echo "github $OWNER/$REPO is at same release $RELEASE"
+		echo "github $OWNER/$REPO release match ($RELEASE)"
 	done
 }
 
