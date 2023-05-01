@@ -860,6 +860,8 @@ check_partition_space() {
 		if [ $PCENT -ge $DISKLIMIT ]
 		then
 			alert "$PARTITION reached size limit: $PCENT %"
+		else
+			echo "$PARTITION size ok ($PCENT %)"
 		fi
 
 		[ -z "$IPCENT" ] && continue
@@ -868,6 +870,8 @@ check_partition_space() {
 		if [ $IPCENT -ge $DISKLIMIT ]
 		then
 			alert "$PARTITION reached inode size limit: $IPCENT %"
+		else
+			echo "$PARTITION inode size ok ($IPCENT %)"
 		fi
 
 	done < <( df -l --exclude-type="devtmpfs" --exclude-type="tmpfs" --exclude-type="overlay" --output="source,fstype,ipcent,pcent" | tail -n +2 )
@@ -895,6 +899,8 @@ check_docker() {
 	# check containers are running 
 	for INSTANCE in ${MANDATORY_DOCKERS[@]}
 	do
+
+		echo
 		explain "checking that mandatory docker $INSTANCE running"
 		if [[ $(docker inspect -f '{{.State.Running}}' $INSTANCE 2>/dev/null) != "true" ]]
 		then
@@ -957,6 +963,7 @@ check_docker() {
 
 	done
 
+	echo
 	explain "check for looping containers"
 	for INSTANCE in $(docker ps --format '{{.Names}}')
 	do 
