@@ -27,12 +27,16 @@ WEBHOOK=""
 DOMAIN=""
 HOSTS=()
 IP_RBLCHECK=()
+GITHUB_RELEASES=()
 
 # ----------------------------------------
 
-
 CONFIG="/etc/host-tools.conf"
-REPORT="/var/run/host-tools.report"
+
+LIBDIR="/var/lib/host-tools"
+test -d $LIBDIR || mkdir $LIBDIR || echo "warning: unable to create $LIBDIR"
+
+REPORT="$LIBDIR/host-tools.report"
 LOCK="/var/run/host-tools.lock"
 HOSTNAME=$(hostname)
 SCRIPTNAME=$(basename $0)
@@ -1028,6 +1032,89 @@ check_raid() {
 
 }
 
+check_github_releases() {
+
+        if [ ${#GITHUB_RELEASES[@]} == 0 ]
+	then
+               abort "no release to check"
+               return
+	fi
+
+	if ! which jq >/dev/null
+	then
+		alert "jq not found (fix via: apt-get install jq)"
+		return 1
+	fi
+
+	if ! which curl >/dev/null
+	then
+		alert "curl not found (fix via: apt-get install curl)"
+		return 1
+	fi
+
+ 	local NOW=$(date +'%s')
+
+
+	for GITHUB_RELEASE in ${GITHUB_RELEASES[@]}
+	do
+		local OWNER=$(echo $GITHUB_RELEASE | cut -d '|' -f 1)
+		local REPO=$(echo $GITHUB_RELEASE | cut -d '|' -f 2)
+		local CURRENT_RELEASE=$(echo $GITHUB_RELEASE | cut -d '|' -f 3)
+
+		echo "checking github $OWNER/$REPO with release $CURRENT_RELEASE"
+
+		URL="https://api.github.com/repos/$OWNER/$REPO/releases/latest" 
+
+		CACHE="$LIBDIR/github.$OWNER.$REPO.latest"
+
+		local do_alert="alert"
+
+		if [ -e $CACHE ]
+		then
+			local CTIME=$(stat -c '%Y' $CACHE)
+			if [ $[ $NOW - $CTIME ] -gt $[ 3600 * 24 * 7 ] ] 
+			then
+				explain "$CACHE is older than a week, refresh it"
+				rm -f $CACHE
+			else
+				explain "using cache $CACHE"
+				do_alert="silent_alert"
+			fi
+		fi
+
+		if [ ! -e $CACHE ]
+		then	
+			explain "fetching $URL to $CACHE"
+			curl -s -H 'User-Agent: host-tools' -H 'Accept: application/vnd.github+json' $URL > $CACHE
+		fi
+
+		ERROR=$(cat $CACHE | jq -r '.message')
+
+		if [ "$ERROR" != "null" ]
+		then
+			$do_alert "github check: error reading api: $ERROR"
+			rm -f $CACHE
+			continue
+		fi
+
+		RELEASE=$(cat $CACHE | jq -r '.tag_name')
+
+		if [ -z "$RELEASE" ] 
+		then
+			$do_alert "github check: unable to parse $CACHE"
+			continue
+		fi
+
+		if [ "$CURRENT_RELEASE" != "$RELEASE" ]
+		then
+			$do_alert "github $OWNER/$REPO release $RELEASE is available (current=$CURRENT_RELEASE)"
+			continue
+		fi
+
+		echo "github $OWNER/$REPO is at same release $RELEASE"
+	done
+}
+
 check_mount_points() {
 
 	#FIXME must be dynamic
@@ -1420,6 +1507,7 @@ options:
 command:
 
 	check-list		list check available
+	<check...>		call directly a check (list available on check-list)
 	full-check		perform a full host check (use it in cron for periodic check)
 	last-report		dump last report from full-check command (ex: use in in /etc/update-motd.d)
 
@@ -1473,14 +1561,24 @@ do
 			# no more parameter
 			[ $CONFIG_LOADED -eq 0 ] && load_config
 
-			# check if $1 is a command (prepend cmd_ and replace - by _)
-			COMMAND=cmd_${1//[-]/_}
+			if [[ $1 =~ ^check_ ]]
+			then
+				# check if $1 is a command (prepend cmd_ and replace - by _)
+				COMMAND=$1
+			else
+
+				# check if $1 is a command (prepend cmd_ and replace - by _)
+				COMMAND=cmd_${1//[-]/_}
+			fi
+
 			if ( declare -F "$COMMAND" >/dev/null)
 			then
 				# command exists, execute it giving next parameters
 				COMMAND_FOUND=1
 				shift
 				$COMMAND "$@"
+			else
+				echo "command $1 not recognized"
 			fi
 
 			# end loop
