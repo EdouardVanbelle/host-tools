@@ -1,0 +1,7 @@
+- add sanity check that an a http service is cerrectly forbidden or correctly redirected
+
+	ex: a protected page must either redirect to a login page or return a 401 / 403
+
+- mprove format of github check
+
+- check that snapshots are correctly working

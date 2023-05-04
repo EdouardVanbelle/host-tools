@@ -12,6 +12,12 @@ ALLOW_ROOT_PASWORD="NO"
 # special partitions that must be mounted
 PARTITIONS=("/home" "/home-backup")
 
+# list of file that should be recent (format: file:expiration-in-minutes)
+FILE_AGE=("/data/example/myfile.ext:15")
+
+# check presence of files
+MANDATORY_FILES=("/data/example")
+
 # mandatory packages on system
 MANDATORY_PACKAGES=("openssh-server" "unattended-upgrades")
 
@@ -26,8 +32,8 @@ MANDATORY_DOCKERS=("my-mailer-instance" "roundcube-instance" "vtun-instance" )
 
 MANDATORY_FILES=("/home/mail-data")
 
-# domain name to use to grab farm list
-DOMAIN=""
+# domain name to use to grab farm list (otherwise use HOSTS=() array )
+DOMAIN="mydomain.tld"
 
 # raid disk to mute notification in case of error (* = matchall)
 SILENT_RAID=()
@@ -39,7 +45,12 @@ SILENT_BADSECTOR=()
 SILENT_HOSTDOWN=()
 
 # docker mute notification in case of upgrade needed (* = matchall)
-SILENT_DOCKER_NEEDUPGRADE=()
+SILENT_DOCKER_NEEDUPGRADE=("*")
+
+# this ssh key must be present in root account
+ROOT_KEYS=( 
+"ssh-rsa AAAAB.... ed@desktop"
+)
 
 # SSL connections to test
 SSL_CONNECTIONS=("www.example.com:443")
@@ -47,12 +58,17 @@ SSL_CONNECTIONS=("www.example.com:443")
 # warn SSL_PREVENTION_EXPIRATION days before expiration
 SSL_PREVENTION_EXPIRATION=30
 
+# check RBL black list (is IP considered as spammer or similar ?)
+IP_RBLCHECK=("123.123.123.123")
 
-
-# this ssh key must be present in root account
-ROOT_KEYS=( 
-"ssh-rsa AAAAB.... ed@desktop"
+# monitor github new releases (format: owner|repository|release) 
+# (helpful to ensure your are using latest repos) (Work in progress, format may change)
+GITHUB_RELEASES=( 
+	"syncthing|syncthing|v1.23.4" 
+	"bitwarden|self-host|v2023.4.2" 
+	"traefik|traefik|v2.10.1" 
 )
 
 # here will send a message on your telegram account
 WEBHOOK='https://api.telegram.org/bot.....:..../sendMessage?chat_id=.....&text='
+
