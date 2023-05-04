@@ -281,6 +281,9 @@ GITHUB_RELEASES=(
 	"traefik/traefik:v2.10.1" 
 )
 
+# GIHUB cache in days, if cache is use alert will be silent (also a way to avoid flooding you via the webhook)
+GITHUB_CACHE_TTL=7
+
 # here will send a message on your telegram account
 WEBHOOK='https://api.telegram.org/bot.....:..../sendMessage?chat_id=.....&text='
 

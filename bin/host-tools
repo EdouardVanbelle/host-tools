@@ -28,6 +28,7 @@ DOMAIN=""
 HOSTS=()
 IP_RBLCHECK=()
 GITHUB_RELEASES=()
+GITHUB_CACHE_TTL=7
 
 # ----------------------------------------
 
@@ -1063,10 +1064,18 @@ check_github_releases() {
 
  	local NOW=$(date +'%s')
 
-	# FIXME: periodic clean up of cache directory
-	# FIXME: setup a release on this directory...
-
 	test -d "$LIBDIR/cache" || mkdir "$LIBDIR/cache"
+
+	for CACHE in "$LIBDIR"/cache/github.*
+	do
+		local CTIME=$(stat -c '%Y' $CACHE)
+		if [ $[ $NOW - $CTIME ] -gt $[ 3600 * 24 * $GITHUB_CACHE_TTL ] ] 
+		then
+			echo "$CACHE is older than $GITHUB_CACHE_TTL days, purging it"
+			rm -f $CACHE
+		fi
+
+	done
 
 	for GITHUB_RELEASE in ${GITHUB_RELEASES[@]}
 	do
@@ -1090,19 +1099,9 @@ check_github_releases() {
 
 		if [ -e $CACHE ]
 		then
-			local CTIME=$(stat -c '%Y' $CACHE)
-			if [ $[ $NOW - $CTIME ] -gt $[ 3600 * 24 * 7 ] ] 
-			then
-				echo "$CACHE is older than a week, refresh it"
-				rm -f $CACHE
-			else
-				echo "using cache $CACHE"
-				do_alert="silent_alert"
-			fi
-		fi
-
-		if [ ! -e $CACHE ]
-		then	
+			echo "using cache $CACHE"
+			do_alert="silent_alert"
+		else	
 			echo "fetching $URL to $CACHE"
 			curl -s -H 'User-Agent: host-tools' -H 'Accept: application/vnd.github+json' $URL > $CACHE
 		fi
