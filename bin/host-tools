@@ -915,6 +915,16 @@ check_docker() {
                        continue
                fi
 
+		local IMAGE=`docker container inspect -f '{{ .Config.Image}}' $INSTANCE`
+		local VERSION=`docker container inspect -f '{{ index .Config.Labels "org.opencontainers.image.version" }}' $INSTANCE`
+
+		if [ -z "$VERSION" ]
+		then
+			VERSION="-unknown-"
+		fi
+
+		echo "container $INSTANCE is using image: $IMAGE with version: $VERSION"
+
 		explain "checking container $INSTANCE security"
 		# container is running, check if need upgrade/a rebuilt
 
