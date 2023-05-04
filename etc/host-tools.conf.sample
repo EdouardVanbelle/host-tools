@@ -61,12 +61,12 @@ SSL_PREVENTION_EXPIRATION=30
 # check RBL black list (is IP considered as spammer or similar ?)
 IP_RBLCHECK=("123.123.123.123")
 
-# monitor github new releases (format: owner|repository|release) 
-# (helpful to ensure your are using latest repos) (Work in progress, format may change)
+# monitor github new releases (format: owner/repository:release) 
+# (helpful to ensure your are using latest repos)
 GITHUB_RELEASES=( 
-	"syncthing|syncthing|v1.23.4" 
-	"bitwarden|self-host|v2023.4.2" 
-	"traefik|traefik|v2.10.1" 
+	"syncthing/syncthing:v1.23.4" 
+	"bitwarden/self-host:v2023.4.2" 
+	"traefik/traefik:v2.10.1" 
 )
 
 # here will send a message on your telegram account

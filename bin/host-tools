@@ -1063,24 +1063,28 @@ check_github_releases() {
 
  	local NOW=$(date +'%s')
 
-	# FIXME: change OWNER|REPO|RELEASE to OWNER/REPO:RELEASE  (more conventional)
-	# FIXME: move cache to $LIBDIR/cache
 	# FIXME: periodic clean up of cache directory
 	# FIXME: setup a release on this directory...
 
+	test -d "$LIBDIR/cache" || mkdir "$LIBDIR/cache"
 
 	for GITHUB_RELEASE in ${GITHUB_RELEASES[@]}
 	do
-		local OWNER=$(echo $GITHUB_RELEASE | cut -d '|' -f 1)
-		local REPO=$(echo $GITHUB_RELEASE | cut -d '|' -f 2)
-		local CURRENT_RELEASE=$(echo $GITHUB_RELEASE | cut -d '|' -f 3)
-
 		echo
+
+		# FIXME: replace 'cut' with bash subtitutions
+		local FULLREPO=$(echo $GITHUB_RELEASE | cut -d ':' -f 1)
+		local CURRENT_RELEASE=$(echo $GITHUB_RELEASE | cut -d ':' -f 2)
+
+		# FIXME: test that FULLREPO contains /
+		local OWNER=$(echo $FULLREPO | cut -d '/' -f 1)
+		local REPO=$(echo $FULLREPO | cut -d '/' -f 2)
+
 		explain "checking github $OWNER/$REPO, current release $CURRENT_RELEASE"
 
 		URL="https://api.github.com/repos/$OWNER/$REPO/releases/latest" 
 
-		CACHE="$LIBDIR/github.$OWNER.$REPO.latest"
+		CACHE="$LIBDIR/cache/github.$OWNER-$REPO.latest"
 
 		local do_alert="alert"
 
