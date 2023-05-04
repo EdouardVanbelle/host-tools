@@ -1,4 +1,7 @@
-Lazy script to check host health and notify my in case of issues
+Very lazy script to check host health and notify me in case of issues 
+(distribution up to date, disk reaching limit, disk too many sectors errors, daemon down, storage issue, network error, OOMKilled, etc...)
+
+My usage: I have different baremetal servers, nuc, raspi in my house and I want to be sure they are in healthy
 
 # basic usage
 
