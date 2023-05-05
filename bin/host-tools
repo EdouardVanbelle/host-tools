@@ -29,6 +29,7 @@ HOSTS=()
 IP_RBLCHECK=()
 GITHUB_RELEASES=()
 GITHUB_CACHE_TTL=7
+HTTP_CHECKS=()
 
 # ----------------------------------------
 
@@ -925,10 +926,45 @@ check_docker() {
 
 		echo "container $INSTANCE is using image: $IMAGE with version: $VERSION"
 
+		explain "checking if $IMAGE has changed on registry"
+
+		LOCAL_HASH=`docker image inspect $IMAGE -f '{{ index .RepoDigests 0 }}' 2>/dev/null | cut -d @ -f 2`
+
+		if [ -z "$LOCAL_HASH" ]
+		then
+			echo image $IMAGE is a local build, ignore check
+
+		else
+			TAG=${IMAGE#*:}
+			if [[ $IMAGE =~ / ]]; 
+			then
+				FULLIMAGE=${IMAGE%:*}
+			else
+				FULLIMAGE=library/${IMAGE%:*}
+			fi
+
+			# FIXME: should cache answer to avoid flood
+			REGISTRY_HASH=`curl -s --header 'Accept: application/json' "https://hub.docker.com/v2/repositories/$FULLIMAGE/tags/$TAG"  | jq -r '.digest'`
+
+			case $REGISTRY_HASH in 
+				null)
+					echo not in registry or got an error
+					;;
+
+				$LOCAL_HASH)
+					echo "$IMAGE is identiqual to registry (hash: $LOCAL_HASH)"
+					;;
+
+				*)
+					silent_alert "$IMAGE has changed on registry (new hash $REGISTRY_HASH)"
+					;;
+			esac
+		fi
+
 		explain "checking container $INSTANCE security"
 		# container is running, check if need upgrade/a rebuilt
 
-		DISTRIBUTION=$(docker container exec $INSTANCE /bin/sh -c 'grep ^ID= /etc/os-release' | cut -d "=" -f 2)
+		DISTRIBUTION=$(docker container exec $INSTANCE /bin/sh -c 'grep ^ID= /etc/os-release' 2>/dev/null | cut -d "=" -f 2)
 
 		case $DISTRIBUTION in
 
@@ -967,7 +1003,7 @@ check_docker() {
 				abort "ignoring $INSTANCE ubuntu"
 				;;
 			*)
-				alert "$INSTANCE is an unknown distribution ($DISTRIBUTION)"
+				abort "$INSTANCE is an unknown distribution ($DISTRIBUTION)"
 				;;
 		esac
 
@@ -1272,6 +1308,70 @@ check_ssl() {
 			alert "please renew certificate $FQDN that will expire the $EXPIRATION (less than $SSL_PREVENTION_EXPIRATION days)"
 		fi
 
+	done
+}
+
+check_http() {
+
+        if [ ${#HTTP_CHECKS[@]} == 0 ]
+        then
+               abort "no http check to perform"
+               return
+        fi
+
+	if ! which curl >/dev/null
+	then
+		alert "curl not found (fix via: apt-get install curl)"
+		return 1
+	fi
+
+	for HTTP_CHECK in ${HTTP_CHECKS[@]}
+	do
+
+		URL=$(echo "$HTTP_CHECK" | cut -d '|' -f 1 )
+		TYPE=$(echo "$HTTP_CHECK" | cut -d '|' -f 2 )
+		TARGET=$(echo "$HTTP_CHECK" | cut -d '|' -f 3 )
+		METHOD=$(echo "$HTTP_CHECK" | cut -d '|' -f 4 )
+		[ -z "$METHOD" ] && METHOD="GET"
+
+
+		#explain "testing $URL expecting $TYPE with target $TARGET"
+
+		FILTER="head -n 1"
+
+		case $TYPE in 
+			AUTHREQUIRED)
+				REGEX="HTTP.*401"
+				;;
+			FORBIDDEN)
+				REGEX="HTTP.*403"
+				;;
+			NOTFOUND)
+				REGEX="HTTP.*404"
+				;;
+			NOTALLOWED)
+				REGEX="HTTP.*405"
+				;;
+			REDIRECT)
+				#  no filter 
+				FILTER="cat"
+				REGEX="location: $TARGET"
+				;;
+			OK)
+				REGEX="HTTP.*200"
+				;;
+			*)
+				alert "wrong format in HTTP_CHECKS, please use: <url>|<AUTHREQUIRED|FORBIDDEN|NOTFOUND|NOTALLOWED|REDIRECT|OK>|<target>"
+				return 1
+				;;
+		esac
+
+		if curl -s -D - -o /dev/null -X $METHOD --header 'User-Agent: host-tool/check' "$URL" | $FILTER | grep -q -e "$REGEX"
+		then
+			echo "http check $METHOD $URL is a correct $TYPE $TARGET"
+		else
+			alert "http check $METHOD $URL failed for $TYPE"
+		fi
 	done
 }
 

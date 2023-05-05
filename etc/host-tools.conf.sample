@@ -72,6 +72,16 @@ GITHUB_RELEASES=(
 # GIHUB cache in days, if cache is use alert will be silent (also a way to avoid flooding you via the webhook)
 GITHUB_CACHE_TTL=7
 
+# check different website, useful to verify that a page is correctly protected 
+# format: <url-to-check>|<expected-result (AUTHREQUIRED|FORBIDDEN|NOTFOUND|NOTALLOWED|REDIRECT|OK)>|[<expected location>]|[<method (default: GET)>]
+HTTP_CHECKS=(
+	"https://mydomain.tld/|OK"
+	"https://mydomain.tld/|NOTALLOWED||PUT"
+	"https://protected.mydomain.tld/|REDIRECT|https://accounts.google.com/o/oauth2"
+	"https://private.mydomain.tld/|AUTHREQUIRED|"
+)
+
+
 # here will send a message on your telegram account
 WEBHOOK='https://api.telegram.org/bot.....:..../sendMessage?chat_id=.....&text='
 
