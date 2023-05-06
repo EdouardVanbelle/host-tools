@@ -926,50 +926,49 @@ check_docker() {
 
 		echo "container $INSTANCE is using image: $IMAGE with version: $VERSION"
 
-		explain "checking if $IMAGE has changed on registry"
-
-		LOCAL_HASH=`docker image inspect $IMAGE -f '{{ index .RepoDigests 0 }}' 2>/dev/null | cut -d @ -f 2`
-
-		if [ -z "$LOCAL_HASH" ]
-		then
-			echo image $IMAGE is a local build, ignore check
-
-		else
-			TAG=${IMAGE#*:}
-			if [[ $IMAGE =~ / ]]; 
-			then
-				FULLIMAGE=${IMAGE%:*}
-			else
-				FULLIMAGE=library/${IMAGE%:*}
-			fi
-
-			# FIXME: should cache answer to avoid flood
-			REGISTRY_HASH=`curl -s --header 'Accept: application/json' "https://hub.docker.com/v2/repositories/$FULLIMAGE/tags/$TAG"  | jq -r '.digest'`
-
-			case $REGISTRY_HASH in 
-				null)
-					echo not in registry or got an error
+                LOCAL_HASH=`docker image inspect $IMAGE -f '{{ index .RepoDigests 0 }}' 2>/dev/null | cut -d @ -f 2`
+ 
+                if [ -z "$LOCAL_HASH" ]
+                then
+                        echo container $INSTANCE is using a local image $IMAGE
+ 
+                else
+                        TAG=${IMAGE#*:}
+                        if [[ $IMAGE =~ / ]];
+                        then
+                                FULLIMAGE=${IMAGE%:*}
+                        else
+                                FULLIMAGE=library/${IMAGE%:*}
+                        fi
+ 
+                        # FIXME: should cache answer to avoid flood
+                        REGISTRY_HASH=`curl -s --header 'Accept: application/json' "https://hub.docker.com/v2/repositories/$FULLIMAGE/tags/$TAG"  | jq -r '.digest'`
+ 
+                        case $REGISTRY_HASH in
+                                null)
+                                        echo "not in registry or got an error"
+                                        ;;
+ 
+                                $LOCAL_HASH)
+					echo "container $INSTANCE is using same $IMAGE on registry ($REGISTRY_HASH)"
 					;;
-
-				$LOCAL_HASH)
-					echo "$IMAGE is identiqual to registry (hash: $LOCAL_HASH)"
-					;;
-
 				*)
-					silent_alert "$IMAGE has changed on registry (new hash $REGISTRY_HASH)"
+					silent_alert "container $INSTANCE is using an old image $IMAGE (found a new hash on registry: $REGISTRY_HASH)"
 					;;
 			esac
-		fi
+		fi	
 
 		explain "checking container $INSTANCE security"
 		# container is running, check if need upgrade/a rebuilt
 
-		DISTRIBUTION=$(docker container exec $INSTANCE /bin/sh -c 'grep ^ID= /etc/os-release' 2>/dev/null | cut -d "=" -f 2)
+		# FIXME avoid docker exec in this case
+		# DISTRIBUTION=$(docker container export $INSTANCE | tar -xO etc/os-release 2>/dev/null | grep ^ID= | cut -d "=" -f 2)
+		DISTRIBUTION=$(docker container exec $INSTANCE /bin/sh -c 'grep ^ID= /etc/os-release' | cut -d "=" -f 2)
 
 		case $DISTRIBUTION in
 
 			debian)
-				echo "$INSTANCE is a debian $DISTRIBUTION"
+				echo "$INSTANCE is a debian"
 
 				docker container exec $INSTANCE /bin/sh -c 'apt-get update >/dev/null 2>/dev/null; apt-get upgrade -s; apt-get clean; rm -rf /var/lib/apt/lists/*' >"/tmp/container-$INSTANCE.package-upgrade"
 				if grep -i security "/tmp/container-$INSTANCE.package-upgrade"
