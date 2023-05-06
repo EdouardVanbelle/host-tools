@@ -9,6 +9,10 @@ usage() {
 	exit 1
 }
 
+create_tag() {
+	local TAG="$1"
+	test -d $TOPLEVEL/snapshots/$TAG || mkdir -p $TOPLEVEL/snapshots/$TAG
+}
 init() {
 
 	# get canonical path
@@ -34,6 +38,9 @@ init() {
 		exit 1
 	fi
 
+	create_tag hourly
+	create_tag daily
+	create_tag weekly
 }
 
 list_root_volumes() {
@@ -54,7 +61,6 @@ list_snapshots() {
 
 }
 
-
 # snapshot 
 create_snapshot() {
 
@@ -65,7 +71,7 @@ create_snapshot() {
 		TAG="$NOW"
 	fi
 
-	test -d $TOPLEVEL/snapshots/$TAG || mkdir -p $TOPLEVEL/snapshots/$TAG
+	create_tag $TAG
 
 	for VOLUMES in $(list_root_volumes)
 	do
