@@ -1111,7 +1111,8 @@ check_github_releases() {
 
 	test -d "$LIBDIR/cache" || mkdir "$LIBDIR/cache"
 
-	for CACHE in "$LIBDIR"/cache/github.*
+	# note: prefer ls rather for CACHE in "$LIBDIR"/cache/github.*, will cover empty directory
+	for CACHE in $(ls "$LIBDIR"/cache/github.* 2>/dev/null)
 	do
 		local CTIME=$(stat -c '%Y' $CACHE)
 		if [ $[ $NOW - $CTIME ] -gt $[ 3600 * 24 * $GITHUB_CACHE_TTL ] ] 
