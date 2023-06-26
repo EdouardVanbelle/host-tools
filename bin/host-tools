@@ -30,6 +30,7 @@ IP_RBLCHECK=()
 GITHUB_RELEASES=()
 GITHUB_CACHE_TTL=7
 HTTP_CHECKS=()
+RBL_SERVICES=( "dnsbl.httpbl.org")
 
 # ----------------------------------------
 
@@ -1377,20 +1378,17 @@ check_http() {
 
 check_rbl() {
 
-	local BLISTS="
-	    dnsbl.httpbl.org
-	    cbl.abuseat.org
-	    dnsbl.sorbs.net
-	    bl.spamcop.net
-	    zen.spamhaus.org
-
-	"
         if [ ${#IP_RBLCHECK[@]} == 0 ]
         then
                abort "no ssl check to perform"
                return
         fi
 
+	if [ ${#RBL_SERVICES[@]} == 0 ]
+        then
+               abort "no RBL services defined"
+               return
+        fi
 
 	if ! which dig >/dev/null
 	then
@@ -1409,16 +1407,24 @@ check_rbl() {
 		      continue
 		fi
 
-		for BL in ${BLISTS} ; do
+		for BL in ${RBL_SERVICES[@]}
+		do
 
 		    # use dig to lookup the name in the blacklist
 		    LISTED="$(dig +short -t A ${REVERSE}.${BL}.)"
 
+		    # obfusq key
+		    local SERVICE=$BL
+		    if [[ $BL =~ \.dq\.spamhaus ]]
+		    then
+		    	SERVICE=$(echo "$BL" | cut -d . -f 2- )
+		    fi
+
 		    if [ -z "$LISTED" ]
 		    then
-			    echo "$IP is (rbl)-clean on $BL"
+			    echo "$IP is (rbl)-clean on $SERVICE"
 		    else
-			    alert "$IP is (rbl)-listed on $BL: $LISTED"
+			    alert "$IP is (rbl)-listed on $SERVICE: $LISTED"
 		    fi
 		done
 
