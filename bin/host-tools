@@ -103,7 +103,6 @@ urlencode() {
     LC_COLLATE=$old_lc_collate
 }
 
-
 contains() {
 	# usage contains "lookup" "array"
 	local lookup=$1
@@ -1510,11 +1509,11 @@ cmd_full_check() {
 
 	if [ "$ALARM" != "0" ] 
 	then
-		MESSAGE="please check $HOSTNAME:"$'\n'"$(grep -v '^@silent' $REPORT | sed 's/^/   /')"
+		MESSAGE="please check *$HOSTNAME*:"$'\n'"$(grep -v '^@silent' $REPORT | sed 's/^/  `/; s/$/`/;')"
 		notify "$MESSAGE"
 
 		echo
-		echo -e "${ESC_RED}please check $HOSTNAME, got issues${ESC_RST}"
+		echo -e "${ESC_RED}please check $HOSTNAME, got $(grep -v '^@silent' $REPORT | wc -l) issue(s)${ESC_RST}"
 
 	else
 		logger -p user.info -t $SCRIPTNAME -- "full check sucess"
@@ -1529,7 +1528,7 @@ cmd_full_check() {
 			if ! ( tail -n 1 $REPORT.prev | grep -q "full-check success" )
 			then
 				# previous test was a failure, notify that everthing is back to normal
-				notify "$HOSTNAME full-check is now successful"
+				notify "*$HOSTNAME* full-check is now successful"
 			fi
 		fi
 
