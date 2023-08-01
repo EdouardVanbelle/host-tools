@@ -136,7 +136,7 @@ alert() {
 
 silent_alert() {
 	echo -e "${ESC_YEL}SILENT ALERT:" "$*" $ESC_RST
-	echo "$*" >>$REPORT
+	echo "@silent" "$*" >>$REPORT
 }
 
 notify() {
@@ -1510,7 +1510,8 @@ cmd_full_check() {
 
 	if [ "$ALARM" != "0" ] 
 	then
-		notify "please check $HOSTNAME, last error: $(tail -n 1 $REPORT)"
+		MESSAGE="please check $HOSTNAME:"$'\n'"$(grep -v '^@silent' $REPORT | sed 's/^/   /')"
+		notify "$MESSAGE"
 
 		echo
 		echo -e "${ESC_RED}please check $HOSTNAME, got issues${ESC_RST}"
