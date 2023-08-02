@@ -169,8 +169,15 @@ notify() {
 		fi
 	fi
 
-	curl -s -q "${WEBHOOK}${message}" >/dev/null
+	CODE=$(curl -s -q -w '%{http_code}' -o /dev/null "${WEBHOOK}${message}")
 
+	if [ "$CODE" != "200" ]
+	then
+		echo "warn: notify webhook failed: $CODE"
+		return 1
+	fi
+
+	return 0
 }
 
 load_config() {
@@ -1510,16 +1517,16 @@ cmd_full_check() {
 	if [ "$ALARM" != "0" ] 
 	then
 		MESSAGE="please check *$HOSTNAME*:"$'\n'"$(grep -v '^@silent' $REPORT | sed 's/^/  `/; s/$/`/;')"
-		notify "$MESSAGE"
+		notify "⚠️  $MESSAGE"
 
 		echo
-		echo -e "${ESC_RED}please check $HOSTNAME, got $(grep -v '^@silent' $REPORT | wc -l) issue(s)${ESC_RST}"
+		echo -e "⚠️  ${ESC_RED}please check $HOSTNAME, got $(grep -v '^@silent' $REPORT | wc -l) issue(s)${ESC_RST}"
 
 	else
 		logger -p user.info -t $SCRIPTNAME -- "full check sucess"
 
 		echo
-		echo -e "${ESC_GRE}full check sucess${ESC_RST}"
+		echo -e "✅ ${ESC_GRE}full check sucess${ESC_RST}"
 
 		echo "$SCRIPTNAME full-check success at "$(date) >>$REPORT
 
@@ -1528,7 +1535,7 @@ cmd_full_check() {
 			if ! ( tail -n 1 $REPORT.prev | grep -q "full-check success" )
 			then
 				# previous test was a failure, notify that everthing is back to normal
-				notify "*$HOSTNAME* full-check is now successful"
+				notify "✅ *$HOSTNAME* full-check is now successful"
 			fi
 		fi
 
