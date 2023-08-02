@@ -1569,15 +1569,15 @@ cmd_install_packages() {
 }
 
 cmd_notify_alive() {
-	notify "${HOSTNAME} is alive"
+	notify "⏰ *${HOSTNAME}* is alive"
 }
 
 cmd_notify_boot() {
-	notify "${HOSTNAME} just boot, please check it"
+	notify "💫 *${HOSTNAME}* just boot, please check it"
 }
 
 cmd_notify() {
-	notify "${HOSTNAME}: $*"
+	notify "*${HOSTNAME}*: $*"
 }
 
 cmd_last_report() {
