@@ -28,7 +28,8 @@ DOMAIN=""
 HOSTS=()
 IP_RBLCHECK=()
 GITHUB_RELEASES=()
-GITHUB_CACHE_TTL=7
+# FIXME: rename it as github as no more exclusibity
+GITHUB_CACHE_TTL=7 
 HTTP_CHECKS=()
 RBL_SERVICES=( "dnsbl.httpbl.org")
 
@@ -417,6 +418,52 @@ check_cpusanity() {
 	fi
 
 
+}
+
+check_hardware_vulnerability() {
+
+       explain "check cpu vulnerability (microcode to upgrade)"
+
+       if ! which dmesg >/dev/null
+       then
+               # note: could also use dmesg
+               abort "dmesg not found [ignoring test]"
+               return
+       fi
+
+       local CACHE="$LIBDIR/vulnerabilities"
+
+       if [ -e $CACHE ]
+       then
+               local NOW=$(date +'%s')
+               local CTIME=$(stat -c '%Y' $CACHE)
+
+               if [ $[ $NOW - $CTIME ] -gt $[ 3600 * 24 * $GITHUB_CACHE_TTL ] ]
+               then
+                       echo "$CACHE is older than $GITHUB_CACHE_TTL days, purging it"
+                       rm -f $CACHE
+               fi
+       fi
+
+       if [ ! -e $CACHE ]
+       then
+
+               # -p2 = alert & crit
+               dmesg -k -t | grep -i 'vulnerable:' > $CACHE
+
+               # if file is non empty
+               if [ -s $CACHE ]
+               then
+
+                       local OLDIFS=$IFS
+                       IFS=$'\n'
+                       for LINE in $(cat $CACHE)
+                       do
+                               alert "found hardw. vuln.: $LINE"
+                       done
+                       IFS=$OLDIFS
+               fi
+       fi
 }
 
 check_kernel_crit_message() {
@@ -1292,6 +1339,10 @@ check_ssl() {
 		alert "openssl not found (fix via: apt-get install openssl)"
 		return 1
 	fi
+
+	# FIXME add way to check certificates via starttls
+	#openssl s_client -servername ... -starttls imap -crlf -connect mail....:143
+	#openssl s_client -servername ... -starttls smtp -crlf -connect mail....:25
 
 
 	for CONNECTION in ${SSL_CONNECTIONS[@]}
