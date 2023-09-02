@@ -1277,7 +1277,8 @@ check_need_reboot() {
 check_farm() {
 
 	# XXX: this check is supposed to be minimalist, if you are interested in managing famrs, I recommand 'consul' or similar
-
+	#
+	explain "checking hosts ping"
 
         if [ -n "$DOMAIN" ]
 	then
@@ -1291,35 +1292,62 @@ check_farm() {
                                HOSTS+=( $HOST )
                        done
                fi
+
 	fi
 
-	local found=0
-        for SERVER in "${HOSTS[@]}"
-	do
-		explain "checking server $SERVER (ping)"
-		found=1
+        if [ ${#HOSTS[@]} -eq 0 ]
+        then
+ 		abort "no host to check"
+		return 0
+        fi
 
-                if [ "$SERVER" == "$HOSTNAME" ]
-		then
-			echo "I am $SERVER, no need to test :)"
-			continue
-		fi
+	if ! which fping >/dev/null
+	then
+		# fallback
+	
+		abort "fping not found, fall back to ping. I recommand you to 'apt install fping'"
 
-		if ping -q -c 3 $SERVER >/dev/null
-		then
-			echo ping: $SERVER is alive
-		else
+		local found=0
+		for SERVER in "${HOSTS[@]}"
+		do
+			explain "checking server $SERVER (ping)"
+			found=1
 
+			if [ "$SERVER" == "$HOSTNAME" ]
+			then
+				echo "I am $SERVER, no need to test :)"
+				continue
+			fi
+
+			if ping -q -c 3 $SERVER >/dev/null
+			then
+				echo ping: $SERVER is alive
+			else
+
+				local do_alert="alert"
+				contains "$SERVER" "${SILENT_HOSTDOWN[@]}" && do_alert="silent_alert"
+				$do_alert "no ping answer from $SERVER"
+			fi
+		done
+	else
+
+		fping -c 3 -q -B 1.5 "${HOSTS[@]}" 2>/tmp/host-tools.ping
+
+		cat /tmp/host-tools.ping
+
+		while read -r SERVER PREPORT
+		do 
 			local do_alert="alert"
 			contains "$SERVER" "${SILENT_HOSTDOWN[@]}" && do_alert="silent_alert"
-			$do_alert "no ping answer from $SERVER"
-		fi
-	done
+			$do_alert "ping error from: $SERVER $PREPORT"
 
-	if [ $found -eq 0 ]
-	then
-		alert "SRV farm.$DOMAIN not defined (no discovery)"
-	fi
+		done < <(grep -v "min/avg/max" /tmp/host-tools.ping)
+
+		#rm -f /tmp/host-tools.ping
+	fi 
+
+	
+
 }
 
 
