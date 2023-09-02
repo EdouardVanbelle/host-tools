@@ -1307,11 +1307,9 @@ check_farm() {
 	
 		abort "fping not found, fall back to ping. I recommand you to 'apt install fping'"
 
-		local found=0
 		for SERVER in "${HOSTS[@]}"
 		do
 			explain "checking server $SERVER (ping)"
-			found=1
 
 			if [ "$SERVER" == "$HOSTNAME" ]
 			then
@@ -1329,24 +1327,23 @@ check_farm() {
 				$do_alert "no ping answer from $SERVER"
 			fi
 		done
-	else
 
-		fping -c 3 -q -B 1.5 "${HOSTS[@]}" 2>/tmp/host-tools.ping
-
-		cat /tmp/host-tools.ping
-
-		while read -r SERVER PREPORT
-		do 
-			local do_alert="alert"
-			contains "$SERVER" "${SILENT_HOSTDOWN[@]}" && do_alert="silent_alert"
-			$do_alert "ping error from: $SERVER $PREPORT"
-
-		done < <(grep -v "min/avg/max" /tmp/host-tools.ping)
-
-		#rm -f /tmp/host-tools.ping
+		return 0
 	fi 
 
-	
+	fping -c 3 -q -B 1.5 "${HOSTS[@]}" 2>/tmp/host-tools.ping
+
+	cat /tmp/host-tools.ping
+
+	while read -r SERVER PREPORT
+	do 
+		local do_alert="alert"
+		contains "$SERVER" "${SILENT_HOSTDOWN[@]}" && do_alert="silent_alert"
+		$do_alert "ping error from: $SERVER $PREPORT"
+
+	done < <(grep -v "min/avg/max" /tmp/host-tools.ping)
+
+	rm -f /tmp/host-tools.ping
 
 }
 
