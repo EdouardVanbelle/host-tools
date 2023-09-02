@@ -11,7 +11,7 @@ ALLOW_ROOT_PASWORD="NO"
 MANDATORY_SERVICES=("ssh.service")
 MANDATORY_DOCKERS=()
 MANDATORY_FILES=()
-# FORMAT: file:exp-in-min
+# FORMAT: dir:exp-in-min:option with options can be 'r' for recursive check
 FILES_AGE=()
 MANDATORY_PACKAGES=("openssh-server")
 FORBIDDEN_PACKAGES=()
@@ -631,26 +631,47 @@ check_file_age() {
 	# check containers are running 
 	for ELEMENT in ${FILES_AGE[@]}
 	do
-		local EXPIRES=60
-		local FILE="$ELEMENT"
+		local FILE
+		local EXPIRES
+		local OPTIONS
 
-		if [[ "$ELEMENT" =~ : ]]
+		FILE=$(echo "$ELEMENT" | cut -d : -f 1)
+		EXPIRES=$(echo "$ELEMENT" | cut -d : -f 2)
+		OPTIONS=$(echo "$ELEMENT" | cut -d : -f 3)
+
+		# force EXPIRES to 60 min if not defined
+		test -z "$EXPIRES" && EXPIRES=60
+
+		if [ "$OPTIONS" = "r" ]
 		then
-			EXPIRES=${ELEMENT#*:}
-			FILE=${ELEMENT%:*}
+			explain "checking recursively that $FILE has recent changes before $EXPIRES minutes"
+		else
+			explain "checking $FILE is not older than $EXPIRES minutes"
 		fi
 
-		explain "checking $FILE is not older than $EXPIRES minutes"
-
-               if [ ! -e $FILE ]
-               then
+             	if [ ! -e $FILE ]
+               	then
                        alert "file $FILE is does not exist"
                        continue
-               fi
+               	fi
 
+		if [ "$OPTIONS" = "r" ]
+		then
+			# recursive case
+			local as_recent
+			as_recent=$(find $FILE -cmin -$EXPIRES -print -quit)
+
+			if [ -n "$as_recent" ]
+			then
+				echo "directory $FILE has changes younger than $EXPIRES min"
+			else
+				alert "directory $FILE no change found since $EXPIRES min"
+			fi
+		fi
+
+		# classic file check
 		local NOW=$(date '+%s')
 		local FILE_AGE=$(( ( $NOW - $(stat -c '%Y' $FILE) ) / 60 ))
-
 		if [ $FILE_AGE -le $EXPIRES ]
 		then
 			echo "file $FILE is less than $EXPIRES min old"
