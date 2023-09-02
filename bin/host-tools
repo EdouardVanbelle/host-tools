@@ -11,7 +11,7 @@ ALLOW_ROOT_PASWORD="NO"
 MANDATORY_SERVICES=("ssh.service")
 MANDATORY_DOCKERS=()
 MANDATORY_FILES=()
-# FORMAT: dir:exp-in-min:option with options can be 'r' for recursive check
+# FILES_AGE format: <file>:<expiration (in minutes)>:[options] where "r" can be an option for recursive checks
 FILES_AGE=()
 MANDATORY_PACKAGES=("openssh-server")
 FORBIDDEN_PACKAGES=()
@@ -667,6 +667,8 @@ check_file_age() {
 			else
 				alert "directory $FILE no change found since $EXPIRES min"
 			fi
+
+			continue
 		fi
 
 		# classic file check
