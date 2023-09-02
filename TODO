@@ -5,3 +5,33 @@
 - mprove format of github check
 
 - check that snapshots are correctly working
+
+- track CVE like: curl 'https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=bitwarden' > cve
+
+curl 'https://services.nvd.nist.gov/rest/json/cves/2.0?virtualMatchString=cpe:2.3:a:traefik:traefik:2.0' > json
+curl 'https://services.nvd.nist.gov/rest/json/cves/2.0?virtualMatchString=cpe:2.3:a:bitwarden:bitwarden' > json
+
+check nvd.nist vs cvedetails
+
+--
+
+	check debian & apt list --upgradable -a
+apt list --upgradable
+
+--
+	check no package in pending install 
+	dpkg --audit
+
+--
+
+	# checksum from dpkg, man dpkg section verify-format
+
+# dpkg --verify | grep -v -E '/usr/share/man|/usr/share/locale'
+??5?????? c /etc/nftables.conf
+??5?????? c /etc/iproute2/rt_tables
+
+
+--
+	check hardware vuln not satisfied:
+
+	dmesg | grep -i Vulnerable
