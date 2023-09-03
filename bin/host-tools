@@ -104,6 +104,36 @@ urlencode() {
     LC_COLLATE=$old_lc_collate
 }
 
+min_to_human_display() {
+
+       local expires=$1
+       # FIXME could take unit from (min or sec)
+
+       local days=$(( $expires/(60*24) ))
+       expires=$(( $expires - ($days*60*24) ))
+
+       local hours=$(( $expires/60 ))
+       expires=$(( $expires - ($hours*60) ))
+
+       local answer=""
+       if [ $days -gt 0 ]
+       then
+               answer="${days}d"
+       fi
+
+       if [ $hours -gt 0 ]
+       then
+               answer="${answer}${hours}h"
+       fi
+
+       if [ $expires -gt 0 ]
+       then
+               answer="${answer}${expires}m"
+       fi
+
+       echo $answer
+}
+
 contains() {
 	# usage contains "lookup" "array"
 	local lookup=$1
@@ -639,14 +669,18 @@ check_file_age() {
 		EXPIRES=$(echo "$ELEMENT" | cut -d : -f 2)
 		OPTIONS=$(echo "$ELEMENT" | cut -d : -f 3)
 
+
 		# force EXPIRES to 60 min if not defined
 		test -z "$EXPIRES" && EXPIRES=60
 
+               local HUMAN_EXP=$(min_to_human_display $EXPIRES)
+
+
 		if [ "$OPTIONS" = "r" ]
 		then
-			explain "checking recursively that $FILE has recent changes before $EXPIRES minutes"
+                       explain "checking recursively that $FILE has recent changes before $HUMAN_EXP"
 		else
-			explain "checking $FILE is not older than $EXPIRES minutes"
+                       explain "checking $FILE is not older than $HUMAN_EXP"
 		fi
 
              	if [ ! -e $FILE ]
@@ -663,9 +697,9 @@ check_file_age() {
 
 			if [ -n "$as_recent" ]
 			then
-				echo "directory $FILE has changes younger than $EXPIRES min"
+                               echo "directory $FILE has changes younger than $HUMAN_EXP"
 			else
-				alert "directory $FILE no change found since $EXPIRES min"
+                               alert "directory $FILE no change found since $HUMAN_EXP"
 			fi
 
 			continue
@@ -676,9 +710,10 @@ check_file_age() {
 		local FILE_AGE=$(( ( $NOW - $(stat -c '%Y' $FILE) ) / 60 ))
 		if [ $FILE_AGE -le $EXPIRES ]
 		then
-			echo "file $FILE is less than $EXPIRES min old"
+                       echo "file $FILE is less than $HUMAN_EXP"
 		else
-			alert "file $FILE is too old ($FILE_AGE min old)"
+                       local HUMAN_AGE = $( min_to_human_display $FILE_AGE )
+                       alert "file $FILE is too old $HUMAN_AGE"
 		fi
 	done
 }
