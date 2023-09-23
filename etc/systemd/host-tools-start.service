@@ -1,9 +1,11 @@
 [Unit]
 Description=Host started notification
-After=network.target
+After=network-online.target
 
 [Service]
+Type=oneshot
 ExecStart=/usr/local/sbin/host-tools notify-boot
 
 [Install]
-WantedBy=default.target
+WantedBy=network-online.target
+
