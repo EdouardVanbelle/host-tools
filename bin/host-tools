@@ -388,7 +388,7 @@ check_packages() {
 	# check that package are fully installed
 	dpkg --audit > /tmp/host-tools.package-audit
 
-	if [ $(wc -l </tmp/host-tools.package-audit) -gt 0 ]
+	if [ -s /tmp/host-tools.package-audit ]
 	then
 		alert "found partial or unconfigured packages during dpkg audit"
 		cat /tmp/host-tools.packages-audit
@@ -424,7 +424,7 @@ check_packages() {
 	done
 
 	rm -f /tmp/host-tools.package-list
-	
+
 }
 
 check_cpusanity() {
@@ -1550,15 +1550,22 @@ check_rbl() {
 		for BL in ${RBL_SERVICES[@]}
 		do
 
-		    # use dig to lookup the name in the blacklist
-		    LISTED="$(dig +short -t A ${REVERSE}.${BL}.)"
+		    NS=""
 
 		    # obfusq key
 		    local SERVICE=$BL
 		    if [[ $BL =~ \.dq\.spamhaus ]]
 		    then
 		    	SERVICE=$(echo "$BL" | cut -d . -f 2- )
+
+			NS="@"$(dig +short NS $SERVICE | head -n1)
+
 		    fi
+
+		    # use dig to lookup the name in the blacklist
+		    echo querying $REVERSE $SERVICE $NS
+
+		    LISTED="$(dig +short -t A ${REVERSE}.${BL}. $NS)"
 
 		    if [ -z "$LISTED" ]
 		    then
