@@ -7,7 +7,7 @@
 DISKLIMIT=75
 BADSECTORLIMIT=0
 BADTEMPLIMIT=50
-ALLOW_ROOT_PASWORD="NO"
+ALLOW_ROOT_PASSWORD="NO"
 MANDATORY_SERVICES=("ssh.service")
 MANDATORY_DOCKERS=()
 MANDATORY_FILES=()
@@ -32,6 +32,7 @@ GITHUB_RELEASES=()
 GITHUB_CACHE_TTL=7 
 HTTP_CHECKS=()
 RBL_SERVICES=( "dnsbl.httpbl.org")
+CHECK_IPV6="NO" # default no
 
 # ----------------------------------------
 
@@ -167,6 +168,25 @@ alert() {
 silent_alert() {
 	echo -e "${ESC_YEL}SILENT ALERT:" "$*" $ESC_RST
 	echo "@silent" "$*" >>$REPORT
+}
+
+to_boolean() {
+
+	# get uppercase
+	case "${1^^}" in
+		YES | TRUE | 1)
+			return 0
+			;;
+
+		NO | FALSE | 0 | " " | "" )
+			return 1
+			;;
+
+		*)
+			echo "Warning value $1 is no a boolean" >&2
+			return 2
+			;;
+	esac
 }
 
 notify() {
@@ -333,15 +353,39 @@ check_root_sshkeys() {
 check_no_root_password() {
 	# because I prefer keys
 
-	[ "$ALLOW_ROOT_PASWORD" == "yes"  ] && echo "allow root password" && return
-	[ "$ALLOW_ROOT_PASWORD" == "YES"  ] && echo "allow root password" && return
-	[ "$ALLOW_ROOT_PASWORD" == "true" ] && echo "allow root password" && return
-	[ "$ALLOW_ROOT_PASWORD" == "TRUE" ] && echo "allow root password" && return
+	to_boolean $ALLOW_ROOT_PASSWORD && echo "allow root password" && return
 
 	explain "checking no root password"
 
 	local ROOT_PASS=$(getent shadow root | cut -d : -f 2)
 	[ "$ROOT_PASS" != "*" ] && alert "this machine has a root password, please use ssh key"
+}
+
+check_ipv6() {
+
+	if ( ! to_boolean $CHECK_IPV6 )
+	then
+		echo "ignore ipv6 check"
+		return
+	fi
+
+	explain "checking ipv6"
+
+	if ! which curl >/dev/null
+	then
+		alert "curl not found (fix via: apt-get install curl)"
+		return 1
+	fi
+
+	IPV6=$(curl -s -6 https://ifconfig.me)
+
+	if [ $? != 0 ]
+	then
+		alert "ipv6 connection test failed"
+	else
+		echo "ipv6 working, outgoing IP is $IPV6"
+	fi
+
 }
 
 check_security_upgrade() {
@@ -1565,7 +1609,7 @@ check_rbl() {
 		    # use dig to lookup the name in the blacklist
 		    echo querying $REVERSE $SERVICE $NS
 
-		    LISTED="$(dig +short -t A ${REVERSE}.${BL}. $NS)"
+		    LISTED="$(dig -4 +short -t A ${REVERSE}.${BL}. $NS)"
 
 		    if [ -z "$LISTED" ]
 		    then
