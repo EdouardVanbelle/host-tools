@@ -756,7 +756,7 @@ check_file_age() {
 		then
                        echo "file $FILE is less than $HUMAN_EXP"
 		else
-                       local HUMAN_AGE = $( min_to_human_display $FILE_AGE )
+                       local HUMAN_AGE=$( min_to_human_display $FILE_AGE )
                        alert "file $FILE is too old $HUMAN_AGE"
 		fi
 	done
