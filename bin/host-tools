@@ -402,7 +402,7 @@ check_security_upgrade() {
 	apt-get update >/tmp/security-update.list 2>&1
 	if grep -q '^[WE]:' /tmp/security-update.list 
 	then
-		alarm "got warning in apt-get update"
+		alert "got warning in apt-get update"
 		cat /tmp/security-update.list
 	fi
 
