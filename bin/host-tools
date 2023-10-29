@@ -11,8 +11,14 @@ ALLOW_ROOT_PASSWORD="NO"
 MANDATORY_SERVICES=("ssh.service")
 MANDATORY_DOCKERS=()
 MANDATORY_FILES=()
+
 # FILES_AGE format: <file>:<expiration (in minutes)>:[options] where "r" can be an option for recursive checks
 FILES_AGE=()
+# FILES_MIME format: <file>:<typemime> usefull to detect ransomware
+FILES_MIME=()
+# FILES_CHECKSUM format: <file>:<checksum>
+FILES_CHECKSUM=()
+
 MANDATORY_PACKAGES=("openssh-server")
 FORBIDDEN_PACKAGES=()
 SILENT_RAID=()
@@ -758,6 +764,89 @@ check_file_age() {
 		else
                        local HUMAN_AGE=$( min_to_human_display $FILE_AGE )
                        alert "file $FILE is too old $HUMAN_AGE"
+		fi
+	done
+}
+
+check_file_mimetype() {
+
+        if [ ${#FILES_MIME[@]} == 0 ]
+        then
+               abort "no file's type mime to verify"
+               return
+        fi
+
+	if ! which file >/dev/null
+	then
+               abort "file not present, (on debian: apt-get install file) [ignoring test]"
+               return
+	fi
+	
+	local FILE
+	local MIME
+
+	# check containers are running 
+	for ELEMENT in ${FILES_MIME[@]}
+	do
+		local FILE=$(echo "$ELEMENT" | cut -d : -f 1)
+		local MIME=$(echo "$ELEMENT" | cut -d : -f 2)
+
+		if [ ! -e "$FILE" ]
+		then
+                       alert "file mime type failed: $FILE does not exists"
+		       continue
+		fi
+
+		CURRENT_MIME=$(file -b --mime-type "$FILE" 2>&1)
+
+		if [ $CURRENT_MIME == "$MIME" ]
+		then
+                       echo "file $FILE type is '$MIME' as expected"
+		else
+                       alert "file $FILE type is '$CURRENT_MIME' (was expecting '$MIME')"
+		fi
+	done
+}
+
+check_file_checksum() {
+
+        if [ ${#FILES_CHECKSUM[@]} == 0 ]
+        then
+               abort "no file's checksum to verify"
+               return
+        fi
+
+	if ! which md5sum >/dev/null
+	then
+               abort "md5sum not present, (on debian: apt-get install md5sum) [ignoring test]"
+		# XXX could use openssl dgst as alternate method
+               return
+	fi
+	
+	local FILE
+	local MIME
+
+	# check containers are running 
+	for ELEMENT in ${FILES_CHECKSUM[@]}
+	do
+		local FILE=$(echo "$ELEMENT" | cut -d : -f 1)
+		local CHECKSUM=$(echo "$ELEMENT" | cut -d : -f 2)
+
+		if [ ! -e "$FILE" ]
+		then
+                       alert "file checksum failed: $FILE does not exists"
+		       continue
+		fi
+
+		CURRENT_CHECKSUM=$(md5sum "$FILE" | awk '{print $1};' 2>&1)
+
+		# Alternate CURRENT_CHECKSUM=$(openssl dgst -md5 "$FILE" | awk '{print $2}' 2>&1)
+
+		if [ $CURRENT_CHECKSUM == "$CHECKSUM" ]
+		then
+                       echo "file $FILE checksum success"
+		else
+                       alert "file $FILE checksum differs (currently '$CURRENT_CHECKSUM', was expecting '$CHECKSUM')"
 		fi
 	done
 }
