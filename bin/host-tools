@@ -12,11 +12,11 @@ MANDATORY_SERVICES=("ssh.service")
 MANDATORY_DOCKERS=()
 MANDATORY_FILES=()
 
-# FILES_AGE format: <file>:<expiration (in minutes)>:[options] where "r" can be an option for recursive checks
+# FILES_AGE format: <file>:<expiration (in minutes)>[:options] where "r" can be an option for recursive checks
 FILES_AGE=()
 # FILES_MIME format: <file>:<typemime> usefull to detect ransomware
 FILES_MIME=()
-# FILES_CHECKSUM format: <file>:<checksum>
+# FILES_CHECKSUM format: <file>:<checksum>[:<digest>] (where digest can be: md5 (default), sha1, sha256, sha512)
 FILES_CHECKSUM=()
 
 MANDATORY_PACKAGES=("openssh-server")
@@ -782,9 +782,6 @@ check_file_mimetype() {
                return
 	fi
 	
-	local FILE
-	local MIME
-
 	# check containers are running 
 	for ELEMENT in ${FILES_MIME[@]}
 	do
@@ -816,21 +813,29 @@ check_file_checksum() {
                return
         fi
 
-	if ! which md5sum >/dev/null
+	if ! which openssl > /dev/null
 	then
-               abort "md5sum not present, (on debian: apt-get install md5sum) [ignoring test]"
-		# XXX could use openssl dgst as alternate method
-               return
+               abort "openssl not present, (on debian: apt-get install openssl) [ignoring test]"
 	fi
-	
-	local FILE
-	local MIME
 
+	#if ! which md5sum >/dev/null
+	#then
+        #       abort "md5sum not present, (on debian: apt-get install md5sum) [ignoring test]"
+	#	# XXX could use openssl dgst as alternate method
+        #       return
+	#fi
+	
 	# check containers are running 
 	for ELEMENT in ${FILES_CHECKSUM[@]}
 	do
 		local FILE=$(echo "$ELEMENT" | cut -d : -f 1)
 		local CHECKSUM=$(echo "$ELEMENT" | cut -d : -f 2)
+		local DIGEST=$(echo "$ELEMENT" | cut -d : -f 3)
+
+		if [ -z "$DIGEST" ]
+		then
+			DIGEST=md5
+		fi
 
 		if [ ! -e "$FILE" ]
 		then
@@ -838,15 +843,15 @@ check_file_checksum() {
 		       continue
 		fi
 
-		CURRENT_CHECKSUM=$(md5sum "$FILE" | awk '{print $1};' 2>&1)
+		CURRENT_CHECKSUM=$(openssl dgst -"$DIGEST" "$FILE" | awk '{print $2}' 2>&1)
 
-		# Alternate CURRENT_CHECKSUM=$(openssl dgst -md5 "$FILE" | awk '{print $2}' 2>&1)
+		#alternate CURRENT_CHECKSUM=$(md5sum "$FILE" | awk '{print $1};' 2>&1)
 
 		if [ $CURRENT_CHECKSUM == "$CHECKSUM" ]
 		then
-                       echo "file $FILE checksum success"
+                       echo "file $FILE ${DIGEST}sum success"
 		else
-                       alert "file $FILE checksum differs (currently '$CURRENT_CHECKSUM', was expecting '$CHECKSUM')"
+                       alert "file $FILE ${DIGEST}sum differs (currently '$CURRENT_CHECKSUM', was expecting '$CHECKSUM')"
 		fi
 	done
 }
