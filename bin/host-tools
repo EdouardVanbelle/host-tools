@@ -1952,7 +1952,7 @@ then
 	exit 1
 fi
 
-
+NO_COMMAND=1
 
 # read parameters
 while [ $# -gt 0 ]
@@ -1978,6 +1978,8 @@ do
 			;;
 
 		*)
+			NO_COMMAND=0
+
 			# no more parameter
 			[ $CONFIG_LOADED -eq 0 ] && load_config
 
@@ -2005,6 +2007,16 @@ do
 			break
 	esac
 done
+
+if [ $NO_COMMAND -eq 1 ]
+then
+	# shortcut to full-check
+	[ $CONFIG_LOADED -eq 0 ] && load_config
+	load_config
+	cmd_full_check
+	exit $ALARM
+fi
+
 
 if [ $COMMAND_FOUND -eq 0 ]
 then
