@@ -344,7 +344,7 @@ check_root_sshkeys() {
 
         local PREV_IFS=$IFS
 	IFS="" 
-	for KEY in ${ROOT_KEYS[@]}
+	for KEY in "${ROOT_KEYS[@]}"
 	do
 		local SHORTKEY=$(echo "$KEY" | awk '{ print $1 " ... " $NF }')
 		echo "ensure that $SHORTKEY is present for root"
@@ -709,7 +709,7 @@ check_file_age() {
         fi
 
 	# check containers are running 
-	for ELEMENT in ${FILES_AGE[@]}
+	for ELEMENT in "${FILES_AGE[@]}"
 	do
 		local FILE
 		local EXPIRES
@@ -733,7 +733,7 @@ check_file_age() {
                        explain "checking $FILE is not older than $HUMAN_EXP"
 		fi
 
-             	if [ ! -e $FILE ]
+             	if [ ! -e "$FILE" ]
                	then
                        alert "file $FILE is does not exist"
                        continue
@@ -743,7 +743,7 @@ check_file_age() {
 		then
 			# recursive case
 			local as_recent
-			as_recent=$(find $FILE -cmin -$EXPIRES -print -quit)
+			as_recent=$(find "$FILE" -cmin -$EXPIRES -print -quit)
 
 			if [ -n "$as_recent" ]
 			then
@@ -757,7 +757,7 @@ check_file_age() {
 
 		# classic file check
 		local NOW=$(date '+%s')
-		local FILE_AGE=$(( ( $NOW - $(stat -c '%Y' $FILE) ) / 60 ))
+		local FILE_AGE=$(( ( $NOW - $(stat -c '%Y' "$FILE") ) / 60 ))
 		if [ $FILE_AGE -le $EXPIRES ]
 		then
                        echo "file $FILE is less than $HUMAN_EXP"
@@ -783,7 +783,7 @@ check_file_mimetype() {
 	fi
 	
 	# check containers are running 
-	for ELEMENT in ${FILES_MIME[@]}
+	for ELEMENT in "${FILES_MIME[@]}"
 	do
 		local FILE=$(echo "$ELEMENT" | cut -d : -f 1)
 		local MIME=$(echo "$ELEMENT" | cut -d : -f 2)
@@ -826,7 +826,7 @@ check_file_checksum() {
 	#fi
 	
 	# check containers are running 
-	for ELEMENT in ${FILES_CHECKSUM[@]}
+	for ELEMENT in "${FILES_CHECKSUM[@]}"
 	do
 		local FILE=$(echo "$ELEMENT" | cut -d : -f 1)
 		local CHECKSUM=$(echo "$ELEMENT" | cut -d : -f 2)
