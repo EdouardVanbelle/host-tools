@@ -813,17 +813,20 @@ check_file_checksum() {
                return
         fi
 
-	if ! which openssl > /dev/null
-	then
-               abort "openssl not present, (on debian: apt-get install openssl) [ignoring test]"
-	fi
+	local USEOPENSSL=0
 
-	#if ! which md5sum >/dev/null
-	#then
-        #       abort "md5sum not present, (on debian: apt-get install md5sum) [ignoring test]"
-	#	# XXX could use openssl dgst as alternate method
-        #       return
-	#fi
+	if ! which md5sum >/dev/null
+	then
+        	abort "md5sum and similar not present (on debian: apt-get install coreutils) [will try fallback to openssl]"
+
+		if which openssl > /dev/null
+		then
+			USEOPENSSL=1
+	 	else
+		      	abort "md5sum (coreutils) nor openssl is present, (on debian: apt-get install openssl) [ignoring test]"
+               		return
+		fi
+	fi
 	
 	# check containers are running 
 	for ELEMENT in "${FILES_CHECKSUM[@]}"
@@ -843,9 +846,21 @@ check_file_checksum() {
 		       continue
 		fi
 
-		CURRENT_CHECKSUM=$(openssl dgst -"$DIGEST" "$FILE" | awk '{print $2}' 2>&1)
+		if [ $USEOPENSSL -eq 0 ]
+		then
+			local BINARY=${DIGEST}sum
+			if ! which $BINARY >/dev/null
+			then
+                       		alert "checksum binary $BINARY not found, cannot test $FILE"
+				continue
+			fi
+			
+			CURRENT_CHECKSUM=$($BINARY "$FILE" | awk '{print $1};' 2>&1)
+		else
+			# openssl fallback
+			CURRENT_CHECKSUM=$(openssl dgst -"$DIGEST" "$FILE" | awk '{print $2}' 2>&1)
+		fi
 
-		#alternate CURRENT_CHECKSUM=$(md5sum "$FILE" | awk '{print $1};' 2>&1)
 
 		if [ $CURRENT_CHECKSUM == "$CHECKSUM" ]
 		then
