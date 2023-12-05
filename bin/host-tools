@@ -273,6 +273,17 @@ lock() {
     if ! flock -n 200
     then
         echo locked
+
+        local NOW=$(date +'%s')
+        local BIRTHTIME=$(stat -c '%W' $LOCK)
+        local AGE=$[ ( $NOW - $BIRTHTIME ) / 3600]
+        if [ $AGE -ge 1 ]
+       then
+           MESSAGE="Alert 'host-tools' is locked on *$HOSTNAME* since too long time: $AGE hour(s)"
+            echo "$MESSAGE" 1>&2
+            notify "⚠️  $MESSAGE"
+       fi
+
         return 1
     fi
 
