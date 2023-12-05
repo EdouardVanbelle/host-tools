@@ -23,6 +23,7 @@ PARTITIONS=()
 PARTITIONS_WRITABLE=()
 
 KERNEL_CRITICAL_IGNORE=""
+KERNEL_VULN_IGNORE=""
 
 MANDATORY_PACKAGES=("openssh-server")
 FORBIDDEN_PACKAGES=()
@@ -549,6 +550,12 @@ check_hardware_vulnerability() {
            IFS=$'\n'
            for LINE in $(cat $CACHE)
            do
+               if [ -n "$KERNEL_VULN_IGNORE" ] && echo "$LINE" | grep -q -E "$KERNEL_VUNL_IGNORE"
+               then
+                   silent_alert "found hardw. vuln.: $LINE"
+                   continue
+               fi
+
                alert "found hardw. vuln.: $LINE"
            done
            IFS=$OLDIFS
