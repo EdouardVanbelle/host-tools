@@ -19,6 +19,11 @@ FILES_MIME=()
 # FILES_CHECKSUM format: <file>:<checksum>[:<digest>] (where digest can be: md5 (default), sha1, sha256, sha512)
 FILES_CHECKSUM=()
 
+PARTITIONS=()
+PARTITIONS_WRITABLE=()
+
+KERNEL_CRITICAL_IGNORE=""
+
 MANDATORY_PACKAGES=("openssh-server")
 FORBIDDEN_PACKAGES=()
 SILENT_RAID=()
@@ -35,7 +40,7 @@ HOSTS=()
 IP_RBLCHECK=()
 GITHUB_RELEASES=()
 # FIXME: rename it as github as no more exclusibity
-GITHUB_CACHE_TTL=7 
+GITHUB_CACHE_TTL=7
 HTTP_CHECKS=()
 RBL_SERVICES=( "dnsbl.httpbl.org")
 CHECK_IPV6="NO" # default no
@@ -77,20 +82,20 @@ IS_VM=""
 # purpose is to detect if we are on a virtual machine (some tests are not relevant on VM)
 detect_virt() {
 
-	if [ -z $IS_VM ]
-	then
-		if which systemd-detect-virt >/dev/null
-		then
-			systemd-detect-virt -v -q
-			IS_VM=$?
-		else
+    if [ -z $IS_VM ]
+    then
+        if which systemd-detect-virt >/dev/null
+        then
+            systemd-detect-virt -v -q
+            IS_VM=$?
+        else
 
-			grep -q -E -i '^(qemu|kvm|zvm|vmware|microsoft|oracle|powervm|xen|bochs|uml|parallels|bhyve|qnx|acrn)' /sys/class/dmi/id/board_vendor
-			IS_VM=$?
-		fi
-	fi
+            grep -q -E -i '^(qemu|kvm|zvm|vmware|microsoft|oracle|powervm|xen|bochs|uml|parallels|bhyve|qnx|acrn)' /sys/class/dmi/id/board_vendor
+            IS_VM=$?
+        fi
+    fi
 
-	return $IS_VM
+    return $IS_VM
 }
 
 
@@ -98,7 +103,7 @@ urlencode() {
     # urlencode <string>
     local old_lc_collate=$LC_COLLATE
     LC_COLLATE="C"
-    
+
     local length="${#1}"
     for (( i = 0; i < length; i++ )); do
         local c="${1:i:1}"
@@ -107,199 +112,196 @@ urlencode() {
             *)               printf '%%%02X' "'$c" ;;
         esac
     done
-    
+
     LC_COLLATE=$old_lc_collate
 }
 
 min_to_human_display() {
 
-       local expires=$1
-       # FIXME could take unit from (min or sec)
+   local expires=$1
+   # FIXME could take unit from (min or sec)
 
-       local days=$(( $expires/(60*24) ))
-       expires=$(( $expires - ($days*60*24) ))
+   local days=$(( $expires/(60*24) ))
+   expires=$(( $expires - ($days*60*24) ))
 
-       local hours=$(( $expires/60 ))
-       expires=$(( $expires - ($hours*60) ))
+   local hours=$(( $expires/60 ))
+   expires=$(( $expires - ($hours*60) ))
 
-       local answer=""
-       if [ $days -gt 0 ]
-       then
-               answer="${days}d"
-       fi
+   local answer=""
+   if [ $days -gt 0 ]
+   then
+           answer="${days}d"
+   fi
 
-       if [ $hours -gt 0 ]
-       then
-               answer="${answer}${hours}h"
-       fi
+   if [ $hours -gt 0 ]
+   then
+           answer="${answer}${hours}h"
+   fi
 
-       if [ $expires -gt 0 ]
-       then
-               answer="${answer}${expires}m"
-       fi
+   if [ $expires -gt 0 ]
+   then
+           answer="${answer}${expires}m"
+   fi
 
-       echo $answer
+   echo $answer
 }
 
 contains() {
-	# usage contains "lookup" "array"
-	local lookup=$1
+    # usage contains "lookup" "array"
+    local lookup=$1
 
-	# match all case
+    # match all case
 
-	shift;
-	for element in "$@"
-	do
-	    [ "$element" == "*"       ] && return 0 # considers that '*' match all
-	    [ "$element" == "$lookup" ] && return 0
-   	done
-	return 1
-
+    shift;
+    for element in "$@"
+    do
+        [ "$element" == "*"       ] && return 0 # considers that '*' match all
+        [ "$element" == "$lookup" ] && return 0
+       done
+    return 1
 }
 
 explain() {
-	echo -e "${ESC_WHI}$*" $ESC_RST
+    echo -e "${ESC_WHI}$*" $ESC_RST
 }
 abort() {
-	echo -e "${ESC_MAG}$*" $ESC_RST
+    echo -e "${ESC_MAG}$*" $ESC_RST
 }
 
 alert() {
-	ALARM=1
-	logger -p user.crit -t "$SCRIPTNAME" -- "$*"
-	echo -e "${ESC_RED}ALERT:" "$*" $ESC_RST
-	echo "$*" >>$REPORT
+    ALARM=1
+    logger -p user.crit -t "$SCRIPTNAME" -- "$*"
+    echo -e "${ESC_RED}ALERT:" "$*" $ESC_RST
+    echo "$*" >>$REPORT
 }
 
 silent_alert() {
-	echo -e "${ESC_YEL}SILENT ALERT:" "$*" $ESC_RST
-	echo "@silent" "$*" >>$REPORT
+    echo -e "${ESC_YEL}SILENT ALERT:" "$*" $ESC_RST
+    echo "@silent" "$*" >>$REPORT
 }
 
 to_boolean() {
 
-	# get uppercase
-	case "${1^^}" in
-		YES | TRUE | 1)
-			return 0
-			;;
+    # get uppercase
+    case "${1^^}" in
+        YES | TRUE | 1)
+            return 0
+            ;;
 
-		NO | FALSE | 0 | " " | "" )
-			return 1
-			;;
+        NO | FALSE | 0 | " " | "" )
+            return 1
+            ;;
 
-		*)
-			echo "Warning value $1 is no a boolean" >&2
-			return 2
-			;;
-	esac
+        *)
+            echo "Warning value $1 is no a boolean" >&2
+            return 2
+            ;;
+    esac
 }
 
 notify() {
 
-	if [ $NOTIFY -eq 0 ]
-	then
-		echo "Silent mode do not notify: $*"
-		return 0
-	fi
+    if [ $NOTIFY -eq 0 ]
+    then
+        echo "Silent mode do not notify: $*"
+        return 0
+    fi
 
-	local message=$( urlencode "$*")
+    local message=$( urlencode "$*")
 
-	if [ -z "$WEBHOOK" ] 
-	then
-		alert "WEBHOOK not defined, cannot notify"
-		return 1
-	fi
+    if [ -z "$WEBHOOK" ]
+    then
+        alert "WEBHOOK not defined, cannot notify"
+        return 1
+    fi
 
-	if ! which curl >/dev/null
-	then
+    if ! which curl >/dev/null
+    then
 
-		# fallback to curl
-		if which wget >/dev/null
-		then
-			# fallback to wget
-			wget -q -O /dev/null "${WEBHOOK}${message}"
-		else
-			# neither curl nor wget found, request user to install at least curl
-			echo "I will really appreciate that you 'apt install curl' to call your webhook" &>2
-			return 1
-		fi
-	fi
+        # fallback to curl
+        if which wget >/dev/null
+        then
+            # fallback to wget
+            wget -q -O /dev/null "${WEBHOOK}${message}"
+        else
+            # neither curl nor wget found, request user to install at least curl
+            echo "I will really appreciate that you 'apt install curl' to call your webhook" &>2
+            return 1
+        fi
+    fi
 
-	CODE=$(curl -s -q -w '%{http_code}' -o /dev/null "${WEBHOOK}${message}")
+    CODE=$(curl -s -q -w '%{http_code}' -o /dev/null "${WEBHOOK}${message}")
 
-	if [ "$CODE" != "200" ]
-	then
-		echo "warn: notify webhook failed: $CODE"
-		return 1
-	fi
+    if [ "$CODE" != "200" ]
+    then
+        echo "warn: notify webhook failed: $CODE"
+        return 1
+    fi
 
-	return 0
+    return 0
 }
 
 load_config() {
 
-	if ! [ -e $CONFIG ]
-	then
-		echo "configuration $CONFIG not found"
-		return 1
-	fi
+    if ! [ -e $CONFIG ]
+    then
+        echo "configuration $CONFIG not found"
+        return 1
+    fi
 
-	if [ "$(stat -c '%u %g' -L $CONFIG)" != "0 0" ]
-	then
-		echo "SECURITY: $CONFIG must be owner by uid: root group: root" 
-		exit 1
-	fi
+    if [ "$(stat -c '%u %g' -L $CONFIG)" != "0 0" ]
+    then
+        echo "SECURITY: $CONFIG must be owner by uid: root group: root" 
+        exit 1
+    fi
 
-	#expected return: -rw-r--r-- 
-	if echo "$(stat -c '%A' -L $CONFIG)" | grep -q '^........w.$'
-	then
-		echo "SECURITY: $CONFIG cannot be writable by anybody"
-		exit 1
-	fi
+    #expected return: -rw-r--r-- 
+    if echo "$(stat -c '%A' -L $CONFIG)" | grep -q '^........w.$'
+    then
+        echo "SECURITY: $CONFIG cannot be writable by anybody"
+        exit 1
+    fi
 
-	# load config (XXX: dangerous , can execute arbitrary command)
-	source $CONFIG
+    # load config (XXX: dangerous , can execute arbitrary command)
+    source $CONFIG
 
-	CONFIG_LOADED=1
+    CONFIG_LOADED=1
 }
 
 lock() {
+    exec 200>$LOCK
+    if ! flock -n 200
+    then
+        echo locked
+        return 1
+    fi
 
-
-	exec 200>$LOCK
-	if ! flock -n 200
-	then
-		echo locked
-		return 1
-	fi
-
-	# will clean up lock at exit
-	trap unlock EXIT
+    # will clean up lock at exit
+    trap unlock EXIT
 
 }
 
 unlock() {
 
-	# remove  auto cleanup
-	trap - EXIT
+    # remove  auto cleanup
+    trap - EXIT
 
-	rm -f $LOCK
+    rm -f $LOCK
 
-	# close filedescriptor 200
-	exec 200>&-
+    # close filedescriptor 200
+    exec 200>&-
 
 }
 
 # will return all HDD/SSD: sda sdb ...
 find_disks() {
 
-	# can be sd or mmc
-	local LOOKUP=$1
-	if [ -z $LOOKUP ]
-	then
-		LOOKUP="sd"
-	fi
+    # can be sd or mmc
+    local LOOKUP=$1
+    if [ -z $LOOKUP ]
+    then
+        LOOKUP="sd"
+    fi
 
         local DISKSMAJORS=""
 
@@ -316,1644 +318,1649 @@ find_disks() {
                 fi
         done </proc/devices
 
-	local LASTLABEL=""
+    local LASTLABEL=""
 
-        # keep only disks (minor are multiple of 16)
-        while read -r MAJOR MINOR LABEL STATS
-        do
-                if [[ "$MAJOR" =~ ^($DISKSMAJORS)$ ]] && [ $(( $MINOR % 16 )) -eq 0 ]
-                then
+    # keep only disks (minor are multiple of 16)
+    while read -r MAJOR MINOR LABEL STATS
+    do
+        if [[ "$MAJOR" =~ ^($DISKSMAJORS)$ ]] && [ $(( $MINOR % 16 )) -eq 0 ]
+        then
 
-			# check that label does not start with previous match (means already found)
-			if [ "$LOOKUP" == "mmc" ] && [ ! -z $LASTLABEL ] && [[ "$LABEL" =~ ^($LASTLABEL) ]]
-			then
-			       continue
-			fi
-			LASTLABEL="$LABEL"
-                        echo $LABEL
-                fi
+            # check that label does not start with previous match (means already found)
+            if [ "$LOOKUP" == "mmc" ] && [ ! -z $LASTLABEL ] && [[ "$LABEL" =~ ^($LASTLABEL) ]]
+            then
+               continue
+            fi
+            LASTLABEL="$LABEL"
+            echo $LABEL
+        fi
 
-        done </proc/diskstats
+    done </proc/diskstats
 }
 
 # ---------------------------------------- checks
 
 check_root_sshkeys() {
 
-	local AUTHORIZED_KEY="/root/.ssh/authorized_keys2"
+    local AUTHORIZED_KEY="/root/.ssh/authorized_keys2"
 
-        local PREV_IFS=$IFS
-	IFS="" 
-	for KEY in "${ROOT_KEYS[@]}"
-	do
-		local SHORTKEY=$(echo "$KEY" | awk '{ print $1 " ... " $NF }')
-		echo "ensure that $SHORTKEY is present for root"
-		if ! ( grep -q ^$KEY $AUTHORIZED_KEY )
-		then
-			alert "$SHORTKEY is missing in $AUTHORIZED_KEY"
-		fi
-	done
-	IFS=$PREV_IFS
+    local PREV_IFS=$IFS
+    IFS=""
+    for KEY in "${ROOT_KEYS[@]}"
+    do
+        local SHORTKEY=$(echo "$KEY" | awk '{ print $1 " ... " $NF }')
+        echo "ensure that $SHORTKEY is present for root"
+        if ! ( grep -q ^$KEY $AUTHORIZED_KEY )
+        then
+            alert "$SHORTKEY is missing in $AUTHORIZED_KEY"
+        fi
+    done
+    IFS=$PREV_IFS
 }
 
 check_no_root_password() {
-	# because I prefer keys
+    # because I prefer keys
 
-	to_boolean $ALLOW_ROOT_PASSWORD && echo "allow root password" && return
+    to_boolean $ALLOW_ROOT_PASSWORD && echo "allow root password" && return
 
-	explain "checking no root password"
+    explain "checking no root password"
 
-	local ROOT_PASS=$(getent shadow root | cut -d : -f 2)
-	[ "$ROOT_PASS" != "*" ] && alert "this machine has a root password, please use ssh key"
+    local ROOT_PASS=$(getent shadow root | cut -d : -f 2)
+    [ "$ROOT_PASS" != "*" ] && alert "this machine has a root password, please use ssh key"
 }
 
 check_ipv6() {
 
-	if ( ! to_boolean $CHECK_IPV6 )
-	then
-		echo "ignore ipv6 check"
-		return
-	fi
+    if ( ! to_boolean $CHECK_IPV6 )
+    then
+        echo "ignore ipv6 check"
+        return
+    fi
 
-	explain "checking ipv6"
+    explain "checking ipv6"
 
-	if ! which curl >/dev/null
-	then
-		alert "curl not found (fix via: apt-get install curl)"
-		return 1
-	fi
+    if ! which curl >/dev/null
+    then
+        alert "curl not found (fix via: apt-get install curl)"
+        return 1
+    fi
 
-	IPV6=$(curl -s -6 https://ifconfig.me)
+    IPV6=$(curl -s -6 https://ifconfig.me)
 
-	if [ $? != 0 ]
-	then
-		alert "ipv6 connection test failed"
-	else
-		echo "ipv6 working, outgoing IP is $IPV6"
-	fi
+    if [ $? != 0 ]
+    then
+        alert "ipv6 connection test failed"
+    else
+        echo "ipv6 working, outgoing IP is $IPV6"
+    fi
 
 }
 
 check_security_upgrade() {
 
-	explain "checking security package to upgrade"
+    explain "checking security package to upgrade"
 
-        if ! which apt-get >/dev/null
-        then
-               abort "apt-get not found, I only know debian systems [ignoring test]"
-               return
-        fi
+    if ! which apt-get >/dev/null
+    then
+           abort "apt-get not found, I only know debian systems [ignoring test]"
+           return
+    fi
 
+    apt-get update >/tmp/security-update.list 2>&1
+    if grep -q '^[WE]:' /tmp/security-update.list
+    then
+        alert "got warning in apt-get update"
+        cat /tmp/security-update.list
+    fi
 
-	apt-get update >/tmp/security-update.list 2>&1
-	if grep -q '^[WE]:' /tmp/security-update.list 
-	then
-		alert "got warning in apt-get update"
-		cat /tmp/security-update.list
-	fi
+    apt-get upgrade -s >/tmp/security-upgrade.list 2>&1
+    if grep -i security /tmp/security-upgrade.list
+    then
+        grep -i security /tmp/security-upgrade.list
+        alert "system has security packages to upgrade"
+    fi
 
-	apt-get upgrade -s >/tmp/security-upgrade.list 2>&1
-	if grep -i security /tmp/security-upgrade.list 
-	then
-		grep -i security /tmp/security-upgrade.list
-		alert "system has security packages to upgrade"
-	fi
+    apt-get clean >/dev/null 2>/dev/null
+    #apt-get auto-clean
 
-	apt-get clean >/dev/null 2>/dev/null
-	#apt-get auto-clean
-
-	rm -f /tmp/security-upgrade.list
-	rm -f /tmp/security-update.list
+    rm -f /tmp/security-upgrade.list
+    rm -f /tmp/security-update.list
 }
 
 check_packages() {
 
-	# FIXME should support alpine with apk
-	if ! which dpkg >/dev/null
-	then
-		abort "dpkg not found, I only know debian distribution [ignoring test]"
-		return
-	fi
+    # FIXME should support alpine with apk
+    if ! which dpkg >/dev/null
+    then
+        abort "dpkg not found, I only know debian distribution [ignoring test]"
+        return
+    fi
 
-	# check that package are fully installed
-	dpkg --audit > /tmp/host-tools.package-audit
+    # check that package are fully installed
+    dpkg --audit > /tmp/host-tools.package-audit
 
-	if [ -s /tmp/host-tools.package-audit ]
-	then
-		alert "found partial or unconfigured packages during dpkg audit"
-		cat /tmp/host-tools.packages-audit
-	fi
+    if [ -s /tmp/host-tools.package-audit ]
+    then
+        alert "found partial or unconfigured packages during dpkg audit"
+        cat /tmp/host-tools.packages-audit
+    fi
 
-	rm -f /tmp/host-tools.package-audit
+    rm -f /tmp/host-tools.package-audit
 
-	if [ ${#MANDATORY_PACKAGES[@]} == 0 ]
+    if [ ${#MANDATORY_PACKAGES[@]} == 0 ]
+    then
+       abort "no mandatory package in config"
+       return
+    fi
+
+    # XXX: dpkg or "apt list --installed ?"
+    dpkg --get-selections > /tmp/host-tools.package-list
+
+    for PACKAGE in ${MANDATORY_PACKAGES[@]}
+    do
+        if grep -q "^$PACKAGE\s\+install$" /tmp/host-tools.package-list 
         then
-               abort "no mandatory package in config"
-               return
+            echo "mandatory package $PACKAGE is installed"
+        else
+            alert "mandatory package $PACKAGE is missing"
         fi
+    done
 
-	# XXX: dpkg or "apt list --installed ?"
-	dpkg --get-selections > /tmp/host-tools.package-list
+    for PACKAGE in ${FORBIDDEN_PACKAGES[@]}
+    do
+        if grep -q "^$PACKAGE\s\+install$" /tmp/host-tools.package-list 
+        then
+            alert "forbidden package $PACKAGE must be removed/purged"
+        fi
+    done
 
-	for PACKAGE in ${MANDATORY_PACKAGES[@]}
-	do
-		if grep -q "^$PACKAGE\s\+install$" /tmp/host-tools.package-list 
-		then
-			echo "mandatory package $PACKAGE is installed"
-		else
-			alert "mandatory package $PACKAGE is missing"
-		fi
-	done
-
-	for PACKAGE in ${FORBIDDEN_PACKAGES[@]}
-	do
-		if grep -q "^$PACKAGE\s\+install$" /tmp/host-tools.package-list 
-		then
-			alert "forbidden package $PACKAGE must be removed/purged"
-		fi
-	done
-
-	rm -f /tmp/host-tools.package-list
+    rm -f /tmp/host-tools.package-list
 
 }
 
 check_cpusanity() {
 
-	explain "check load avg in 15min"
-	LOADAVG=$(cat /proc/loadavg | awk '{print $3}')
-        LOADAVG_ROUNDED=$( echo $LOADAVG | awk '{ print int($1+0.5) }')
-	CPUCOUNT=$(grep -c ^processor /proc/cpuinfo)
+    explain "check load avg in 15min"
+    LOADAVG=$(cat /proc/loadavg | awk '{print $3}')
+    LOADAVG_ROUNDED=$( echo $LOADAVG | awk '{ print int($1+0.5) }')
+    CPUCOUNT=$(grep -c ^processor /proc/cpuinfo)
 
-	# Alert on round(LOADAVG) > #CPU+1
-	if [ $LOADAVG_ROUNDED -gt $(($CPUCOUNT+1)) ]
-	then
-		alert "cpu loadavg (on 15min) is high: $LOADAVG (cpu count: $CPUCOUNT)"
-	fi
+    # Alert on round(LOADAVG) > #CPU+1
+    if [ $LOADAVG_ROUNDED -gt $(($CPUCOUNT+1)) ]
+    then
+        alert "cpu loadavg (on 15min) is high: $LOADAVG (cpu count: $CPUCOUNT)"
+    fi
 
-	explain "check for blocked processes (in IOWait for example)"
-	PROCSBLOCKED=$(grep procs_blocked /proc/stat | awk '{print $2}')
-	if [ $PROCSBLOCKED -gt 5 ] 
-	then
-		alert "found many blocked processes ($PROCSBLOCKED)"
-	fi
-
+    explain "check for blocked processes (in IOWait for example)"
+    PROCSBLOCKED=$(grep procs_blocked /proc/stat | awk '{print $2}')
+    if [ $PROCSBLOCKED -gt 5 ]
+    then
+        alert "found many blocked processes ($PROCSBLOCKED)"
+    fi
 
 }
 
 check_hardware_vulnerability() {
 
-       explain "check cpu vulnerability (microcode to upgrade)"
+   explain "check cpu vulnerability (microcode to upgrade)"
 
-       if ! which dmesg >/dev/null
+   if ! which dmesg >/dev/null
+   then
+       # note: could also use dmesg
+       abort "dmesg not found [ignoring test]"
+       return
+   fi
+
+   local CACHE="$LIBDIR/vulnerabilities"
+
+   if [ -e $CACHE ]
+   then
+       local NOW=$(date +'%s')
+       local CTIME=$(stat -c '%Y' $CACHE)
+
+       if [ $[ $NOW - $CTIME ] -gt $[ 3600 * 24 * $GITHUB_CACHE_TTL ] ]
        then
-               # note: could also use dmesg
-               abort "dmesg not found [ignoring test]"
-               return
+               echo "$CACHE is older than $GITHUB_CACHE_TTL days, purging it"
+               rm -f $CACHE
        fi
+   fi
 
-       local CACHE="$LIBDIR/vulnerabilities"
+   if [ ! -e $CACHE ]
+   then
+       # -p2 = alert & crit
+       dmesg -k -t | grep -i 'vulnerable:' > $CACHE
 
-       if [ -e $CACHE ]
-       then
-               local NOW=$(date +'%s')
-               local CTIME=$(stat -c '%Y' $CACHE)
-
-               if [ $[ $NOW - $CTIME ] -gt $[ 3600 * 24 * $GITHUB_CACHE_TTL ] ]
-               then
-                       echo "$CACHE is older than $GITHUB_CACHE_TTL days, purging it"
-                       rm -f $CACHE
-               fi
-       fi
-
-       if [ ! -e $CACHE ]
+       # if file is non empty
+       if [ -s $CACHE ]
        then
 
-               # -p2 = alert & crit
-               dmesg -k -t | grep -i 'vulnerable:' > $CACHE
-
-               # if file is non empty
-               if [ -s $CACHE ]
-               then
-
-                       local OLDIFS=$IFS
-                       IFS=$'\n'
-                       for LINE in $(cat $CACHE)
-                       do
-                               alert "found hardw. vuln.: $LINE"
-                       done
-                       IFS=$OLDIFS
-               fi
+           local OLDIFS=$IFS
+           IFS=$'\n'
+           for LINE in $(cat $CACHE)
+           do
+               alert "found hardw. vuln.: $LINE"
+           done
+           IFS=$OLDIFS
        fi
+   fi
 }
 
 check_kernel_crit_message() {
 
-	explain "check critical kernel message since 3 days"
+    explain "check critical kernel message since 3 days"
 
-	if ! which journalctl >/dev/null
-	then
-		# note: could also use dmesg
-		abort "journalctl not found [ignoring test]"
-		return
-	fi
+    if ! which journalctl >/dev/null
+    then
+        # note: could also use dmesg
+        abort "journalctl not found [ignoring test]"
+        return
+    fi
 
-	# -p2 = alert & crit
-	journalctl -b -k -e -p2 -q -x --no-pager --since="$(date --iso --date='3day ago')" >/tmp/critmsg
+    # -p2 = alert & crit
+    if [ -z "$KERNEL_CRITICAL_IGNORE" ]
+    then
+        journalctl -b -k -e -p2 -q -x --no-pager --since="$(date --iso --date='3day ago')" >/tmp/critmsg
+    else
+        journalctl -b -k -e -p2 -q -x --no-pager --since="$(date --iso --date='3day ago')" | grep -v -E "$KERNEL_CRITICAL_IGNORE" >/tmp/critmsg
+    fi
 
-	# if file is non empty
-	if [ -s /tmp/critmsg ]
-	then
-		cat /tmp/critmsg
-		alert "found critical kernel message " $(tail -n 1 /tmp/critmsg)
-	fi
+    # if file is non empty
+    if [ -s /tmp/critmsg ]
+    then
+        cat /tmp/critmsg
+        alert "found critical kernel message " $(tail -n 1 /tmp/critmsg)
+    fi
 
-	rm -f /tmp/critmsg
+    rm -f /tmp/critmsg
 
 }
 
 sensor_check() {
-       local NAME="$1"
-       local INPUT=$2
-       local MAX=$3
+   local NAME="$1"
+   local INPUT=$2
+   local MAX=$3
 
-       if [ -z "$MAX" ]
-       then
-               echo "sensor '$NAME' seems ok ($INPUT without MAX value)"
-               return
-       fi
+   if [ -z "$MAX" ]
+   then
+       echo "sensor '$NAME' seems ok ($INPUT without MAX value)"
+       return
+   fi
 
-       if [ $INPUT -lt $MAX ]
-       then
-               echo "sensor '$NAME' is ok ($INPUT < $MAX)"
-       else
-               alert "sensor '$NAME' has reached the max value ($INPUT > $MAX)"
-       fi
+   if [ $INPUT -lt $MAX ]
+   then
+       echo "sensor '$NAME' is ok ($INPUT < $MAX)"
+   else
+       alert "sensor '$NAME' has reached the max value ($INPUT > $MAX)"
+   fi
 
 }
 
 check_sensors() {
-	
-	explain "checking sensors (like temperature)"
 
-	if detect_virt 
-	then
-               abort "this is a virtual machine, test is not relevant [ignoring test]"
-	       return
-	fi
+    explain "checking sensors (like temperature)"
+
+    if detect_virt
+    then
+       abort "this is a virtual machine, test is not relevant [ignoring test]"
+       return
+    fi
 
 
-	if ! which sensors >/dev/null
-	then
-               abort "sensors not present, (on debian: apt-get install lm-sensors) [ignoring test]"
-               return
-	fi
+    if ! which sensors >/dev/null
+    then
+       abort "sensors not present, (on debian: apt-get install lm-sensors) [ignoring test]"
+       return
+    fi
 
-	local PREV_IFS="$IFS"
-	local IFS=""
-       local NAME
-	local INPUT
-	local MAX
-	while read -r LINE
-	do
-		if [ -z $LINE ]
-		then
-                       # new line maybe we have a value
-                       if [ -n "$NAME" ] && [ -n "$INPUT" ]
-                       then
-                               if [[ $NAME =~ temp ]]
-                               then
-                                       MAX=80
-                               fi
-                               sensor_check "$NAME" $INPUT $MAX
-                       fi
+    local PREV_IFS="$IFS"
+    local IFS=""
+    local NAME
+    local INPUT
+    local MAX
+    while read -r LINE
+    do
+        if [ -z $LINE ]
+        then
+            # new line maybe we have a value
+            if [ -n "$NAME" ] && [ -n "$INPUT" ]
+            then
+                if [[ $NAME =~ temp ]]
+                then
+                    MAX=80
+                fi
+                sensor_check "$NAME" $INPUT $MAX
+            fi
 
-			# clean values for next reading
-                       NAME=""
-			INPUT=""
-			MAX=""
-		fi
+            # clean values for next reading
+            NAME=""
+            INPUT=""
+            MAX=""
+        fi
 
-		if [[ "$LINE" =~ ^[A-Za-z] ]]
-		then
-                       if [ -z "$NAME" ]
-			then
-                               NAME=$LINE
-			else
-                               NAME="$NAME > "$LINE
-			fi
-		elif [[ "$LINE" =~ ^(  .*_input:) ]]
-		then
-			# append sensor prefix to header
-                       local LNAME=${LINE%%_input*}
-                       NAME="$NAME > ${LNAME## * }"
-			# prinft %.0f = round value (precision to 0 decimal)
-			INPUT=$(printf "%.0f" ${LINE#*: })
-		elif [[ "$LINE" =~ ^(  .*_max:) ]]
-		then
-			# prinft %.0f = round value (precision to 0 decimal)
-			MAX=$(printf "%.0f" ${LINE#*: })
-		fi
+        if [[ "$LINE" =~ ^[A-Za-z] ]]
+        then
+            if [ -z "$NAME" ]
+            then
+                NAME=$LINE
+            else
+                NAME="$NAME > "$LINE
+            fi
+        elif [[ "$LINE" =~ ^(  .*_input:) ]]
+        then
+            # append sensor prefix to header
+            local LNAME=${LINE%%_input*}
+            NAME="$NAME > ${LNAME## * }"
+            # prinft %.0f = round value (precision to 0 decimal)
+            INPUT=$(printf "%.0f" ${LINE#*: })
+        elif [[ "$LINE" =~ ^(  .*_max:) ]]
+        then
+            # prinft %.0f = round value (precision to 0 decimal)
+            MAX=$(printf "%.0f" ${LINE#*: })
+        fi
 
-               if [ -n "$NAME" ] && [ -n "$INPUT" ] && [ -n "$MAX" ]
-		then
-                       sensor_check "$NAME" $INPUT $MAX
+        if [ -n "$NAME" ] && [ -n "$INPUT" ] && [ -n "$MAX" ]
+        then
+            sensor_check "$NAME" $INPUT $MAX
 
-			# clean values for next reading
-                       NAME=""
-			INPUT=""
-			MAX=""
-		fi
+            # clean values for next reading
+            NAME=""
+            INPUT=""
+            MAX=""
+        fi
 
-	done < <( sensors -u )
-	IFS="$PREV_IFS"
+    done < <( sensors -u )
+    IFS="$PREV_IFS"
 }
 
 check_oomkilled() {
 
-	explain "check oomkilled process since 1 day"
+    explain "check oomkilled process since 1 day"
 
-	if which journalctl >/dev/null
-	then	
-		# try via systemctl
-		# -p4 = warning
-		journalctl -b -k -e -p4 -x -q --no-pager --since="$(date --iso --date='1day ago')" | grep -E -i 'killed process|out of memory' > /tmp/oom.list
-	elif [ -e /var/log/kern.log ]
-	then
-		# try via messages
-		grep -E -i 'killed process|out of memory' /var/log/kern.log > /tmp/oom.list
-	elif [ -e /var/log/messages ]
-	then
-		# try via messages
-		grep -E -i 'killed process|out of memory' /var/log/messages > /tmp/oom.list
-	else
-		abort "neither journalctl nor kern.log/messages where found, cannot check oomkilled [ignoring test]"
-		return
-	fi
+    if which journalctl >/dev/null
+    then
+        # try via systemctl
+        # -p4 = warning
+        journalctl -b -k -e -p4 -x -q --no-pager --since="$(date --iso --date='1day ago')" | grep -E -i 'killed process|out of memory' > /tmp/oom.list
+    elif [ -e /var/log/kern.log ]
+    then
+        # try via messages
+        grep -E -i 'killed process|out of memory' /var/log/kern.log > /tmp/oom.list
+    elif [ -e /var/log/messages ]
+    then
+        # try via messages
+        grep -E -i 'killed process|out of memory' /var/log/messages > /tmp/oom.list
+    else
+        abort "neither journalctl nor kern.log/messages where found, cannot check oomkilled [ignoring test]"
+        return
+    fi
 
-	# if file is non empty
-	if [ -s /tmp/oom.list ]
-	then
-		cat /tmp/oom.list
-		alert "found out of memory processes " $(tail -n 1 /tmp/oom.list)
-	fi
+    # if file is non empty
+    if [ -s /tmp/oom.list ]
+    then
+        cat /tmp/oom.list
+        alert "found out of memory processes " $(tail -n 1 /tmp/oom.list)
+    fi
 
-	rm -f /tmp/oom.list
+    rm -f /tmp/oom.list
 }
 
 check_file_age() {
 
-        if [ ${#FILES_AGE[@]} == 0 ]
+    if [ ${#FILES_AGE[@]} == 0 ]
+    then
+        abort "no file's age to check"
+        return
+    fi
+
+    # check containers are running
+    for ELEMENT in "${FILES_AGE[@]}"
+    do
+        local FILE
+        local EXPIRES
+        local OPTIONS
+
+        FILE=$(echo "$ELEMENT" | cut -d : -f 1)
+        EXPIRES=$(echo "$ELEMENT" | cut -d : -f 2)
+        OPTIONS=$(echo "$ELEMENT" | cut -d : -f 3)
+
+
+        # force EXPIRES to 60 min if not defined
+        test -z "$EXPIRES" && EXPIRES=60
+
+        local HUMAN_EXP=$(min_to_human_display $EXPIRES)
+
+        if [ "$OPTIONS" = "r" ]
         then
-               abort "no file's age to check"
-               return
+            explain "checking recursively that $FILE has recent changes before $HUMAN_EXP"
+        else
+            explain "checking $FILE is not older than $HUMAN_EXP"
         fi
 
-	# check containers are running 
-	for ELEMENT in "${FILES_AGE[@]}"
-	do
-		local FILE
-		local EXPIRES
-		local OPTIONS
+        if [ ! -e "$FILE" ]
+        then
+            alert "file $FILE is does not exist"
+            continue
+        fi
 
-		FILE=$(echo "$ELEMENT" | cut -d : -f 1)
-		EXPIRES=$(echo "$ELEMENT" | cut -d : -f 2)
-		OPTIONS=$(echo "$ELEMENT" | cut -d : -f 3)
+        if [ "$OPTIONS" = "r" ]
+        then
+            # recursive case
+            local as_recent
+            as_recent=$(find "$FILE" -cmin -$EXPIRES -print -quit)
 
+            if [ -n "$as_recent" ]
+            then
+                echo "directory $FILE has changes younger than $HUMAN_EXP"
+            else
+                alert "directory $FILE no change found since $HUMAN_EXP"
+            fi
 
-		# force EXPIRES to 60 min if not defined
-		test -z "$EXPIRES" && EXPIRES=60
+            continue
+        fi
 
-               local HUMAN_EXP=$(min_to_human_display $EXPIRES)
-
-
-		if [ "$OPTIONS" = "r" ]
-		then
-                       explain "checking recursively that $FILE has recent changes before $HUMAN_EXP"
-		else
-                       explain "checking $FILE is not older than $HUMAN_EXP"
-		fi
-
-             	if [ ! -e "$FILE" ]
-               	then
-                       alert "file $FILE is does not exist"
-                       continue
-               	fi
-
-		if [ "$OPTIONS" = "r" ]
-		then
-			# recursive case
-			local as_recent
-			as_recent=$(find "$FILE" -cmin -$EXPIRES -print -quit)
-
-			if [ -n "$as_recent" ]
-			then
-                               echo "directory $FILE has changes younger than $HUMAN_EXP"
-			else
-                               alert "directory $FILE no change found since $HUMAN_EXP"
-			fi
-
-			continue
-		fi
-
-		# classic file check
-		local NOW=$(date '+%s')
-		local FILE_AGE=$(( ( $NOW - $(stat -c '%Y' "$FILE") ) / 60 ))
-		if [ $FILE_AGE -le $EXPIRES ]
-		then
-                       echo "file $FILE is less than $HUMAN_EXP"
-		else
-                       local HUMAN_AGE=$( min_to_human_display $FILE_AGE )
-                       alert "file $FILE is too old $HUMAN_AGE"
-		fi
-	done
+        # classic file check
+        local NOW=$(date '+%s')
+        local FILE_AGE=$(( ( $NOW - $(stat -c '%Y' "$FILE") ) / 60 ))
+        if [ $FILE_AGE -le $EXPIRES ]
+        then
+            echo "file $FILE is less than $HUMAN_EXP"
+        else
+            local HUMAN_AGE=$( min_to_human_display $FILE_AGE )
+            alert "file $FILE is too old $HUMAN_AGE"
+        fi
+    done
 }
 
 check_file_mimetype() {
 
-        if [ ${#FILES_MIME[@]} == 0 ]
+    if [ ${#FILES_MIME[@]} == 0 ]
+    then
+        abort "no file's type mime to verify"
+        return
+    fi
+
+    if ! which file >/dev/null
+    then
+        abort "file not present, (on debian: apt-get install file) [ignoring test]"
+        return
+    fi
+
+    # check containers are running
+    for ELEMENT in "${FILES_MIME[@]}"
+    do
+        local FILE=$(echo "$ELEMENT" | cut -d : -f 1)
+        local MIME=$(echo "$ELEMENT" | cut -d : -f 2)
+
+        if [ ! -e "$FILE" ]
         then
-               abort "no file's type mime to verify"
-               return
+            alert "file mime type failed: $FILE does not exists"
+            continue
         fi
 
-	if ! which file >/dev/null
-	then
-               abort "file not present, (on debian: apt-get install file) [ignoring test]"
-               return
-	fi
-	
-	# check containers are running 
-	for ELEMENT in "${FILES_MIME[@]}"
-	do
-		local FILE=$(echo "$ELEMENT" | cut -d : -f 1)
-		local MIME=$(echo "$ELEMENT" | cut -d : -f 2)
+        CURRENT_MIME=$(file -b --mime-type "$FILE" 2>&1)
 
-		if [ ! -e "$FILE" ]
-		then
-                       alert "file mime type failed: $FILE does not exists"
-		       continue
-		fi
-
-		CURRENT_MIME=$(file -b --mime-type "$FILE" 2>&1)
-
-		if [ $CURRENT_MIME == "$MIME" ]
-		then
-                       echo "file $FILE type is '$MIME' as expected"
-		else
-                       alert "file $FILE type is '$CURRENT_MIME' (was expecting '$MIME')"
-		fi
-	done
+        if [ $CURRENT_MIME == "$MIME" ]
+        then
+            echo "file $FILE type is '$MIME' as expected"
+        else
+            alert "file $FILE type is '$CURRENT_MIME' (was expecting '$MIME')"
+        fi
+    done
 }
 
 check_file_checksum() {
 
-        if [ ${#FILES_CHECKSUM[@]} == 0 ]
+    if [ ${#FILES_CHECKSUM[@]} == 0 ]
+    then
+        abort "no file's checksum to verify"
+        return
+    fi
+
+    local USEOPENSSL=0
+
+    if ! which md5sum >/dev/null
+    then
+        abort "md5sum and similar not present (on debian: apt-get install coreutils) [will try fallback to openssl]"
+
+        if which openssl > /dev/null
         then
-               abort "no file's checksum to verify"
-               return
+            USEOPENSSL=1
+        else
+            abort "md5sum (coreutils) nor openssl is present, (on debian: apt-get install openssl) [ignoring test]"
+            return
+        fi
+    fi
+
+    # check containers are running
+    for ELEMENT in "${FILES_CHECKSUM[@]}"
+    do
+        local FILE=$(echo "$ELEMENT" | cut -d : -f 1)
+        local CHECKSUM=$(echo "$ELEMENT" | cut -d : -f 2)
+        local DIGEST=$(echo "$ELEMENT" | cut -d : -f 3)
+
+        if [ -z "$DIGEST" ]
+        then
+            DIGEST=md5
         fi
 
-	local USEOPENSSL=0
+        if [ ! -e "$FILE" ]
+        then
+            alert "file checksum failed: $FILE does not exists"
+            continue
+        fi
 
-	if ! which md5sum >/dev/null
-	then
-        	abort "md5sum and similar not present (on debian: apt-get install coreutils) [will try fallback to openssl]"
+        if [ $USEOPENSSL -eq 0 ]
+        then
+            local BINARY=${DIGEST}sum
+            if ! which $BINARY >/dev/null
+            then
+                alert "checksum binary $BINARY not found, cannot test $FILE"
+                continue
+            fi
 
-		if which openssl > /dev/null
-		then
-			USEOPENSSL=1
-	 	else
-		      	abort "md5sum (coreutils) nor openssl is present, (on debian: apt-get install openssl) [ignoring test]"
-               		return
-		fi
-	fi
-	
-	# check containers are running 
-	for ELEMENT in "${FILES_CHECKSUM[@]}"
-	do
-		local FILE=$(echo "$ELEMENT" | cut -d : -f 1)
-		local CHECKSUM=$(echo "$ELEMENT" | cut -d : -f 2)
-		local DIGEST=$(echo "$ELEMENT" | cut -d : -f 3)
+            CURRENT_CHECKSUM=$($BINARY "$FILE" | awk '{print $1};' 2>&1)
+        else
+            # openssl fallback
+            CURRENT_CHECKSUM=$(openssl dgst -"$DIGEST" "$FILE" | awk '{print $2}' 2>&1)
+        fi
 
-		if [ -z "$DIGEST" ]
-		then
-			DIGEST=md5
-		fi
-
-		if [ ! -e "$FILE" ]
-		then
-                       alert "file checksum failed: $FILE does not exists"
-		       continue
-		fi
-
-		if [ $USEOPENSSL -eq 0 ]
-		then
-			local BINARY=${DIGEST}sum
-			if ! which $BINARY >/dev/null
-			then
-                       		alert "checksum binary $BINARY not found, cannot test $FILE"
-				continue
-			fi
-			
-			CURRENT_CHECKSUM=$($BINARY "$FILE" | awk '{print $1};' 2>&1)
-		else
-			# openssl fallback
-			CURRENT_CHECKSUM=$(openssl dgst -"$DIGEST" "$FILE" | awk '{print $2}' 2>&1)
-		fi
-
-
-		if [ $CURRENT_CHECKSUM == "$CHECKSUM" ]
-		then
-                       echo "file $FILE ${DIGEST}sum success"
-		else
-                       alert "file $FILE ${DIGEST}sum differs (currently '$CURRENT_CHECKSUM', was expecting '$CHECKSUM')"
-		fi
-	done
+        if [ $CURRENT_CHECKSUM == "$CHECKSUM" ]
+        then
+            echo "file $FILE ${DIGEST}sum success"
+        else
+            alert "file $FILE ${DIGEST}sum differs (currently '$CURRENT_CHECKSUM', was expecting '$CHECKSUM')"
+        fi
+    done
 }
 
 check_services() {
 
-	explain "checking systemd services status"
+    explain "checking systemd services status"
 
-        if ! which systemctl >/dev/null
-        then
-               abort "systemctl not found (system is not running using systemd ?) [ignoring test]"
-               return
-        fi
+    if ! which systemctl >/dev/null
+    then
+        abort "systemctl not found (system is not running using systemd ?) [ignoring test]"
+        return
+    fi
 
-	# example of output
-	# networking.service loaded    failed failed Raise network interfaces
-	# ureadahead.service not-found failed failed ureadahead.service
-	while read -r SERVICE LOAD ACTIVE RUN DESCRIPTION
-	do
-		local do_alert="alert"
-		contains "$SERVICE" "${SILENT_SERVICES[@]}" && do_alert=silent_alert
+    # example of output
+    # networking.service loaded    failed failed Raise network interfaces
+    # ureadahead.service not-found failed failed ureadahead.service
+    while read -r SERVICE LOAD ACTIVE RUN DESCRIPTION
+    do
+        local do_alert="alert"
+        contains "$SERVICE" "${SILENT_SERVICES[@]}" && do_alert=silent_alert
 
-		$do_alert "service $SERVICE warning (loaded=$LOAD active=$ACTIVE run=$RUN)"
+        $do_alert "service $SERVICE warning (loaded=$LOAD active=$ACTIVE run=$RUN)"
 
-	done < <( systemctl --state=failed  --no-pager --no-legend list-units )
+    done < <( systemctl --state=failed  --no-pager --no-legend list-units )
 
-	for SERVICE in ${MANDATORY_SERVICES[@]}
-	do
-		systemctl --no-pager --no-legend list-units "$SERVICE" | { read -r _S LOAD ACTIVE RUN DESCRIPTION
-			if [ "$_S" == "" ]
-			then
-				alert "mandatory service $SERVICE not running (not found)"
-			elif [ "$RUN" != "running" ]
-			then
-				alert "mandatory service $SERVICE not running (loaded=$LOAD active=$ACTIVE run=$RUN)"
-			else
-				echo "mandatory service $SERVICE is running"
-			fi
-		}
-	done
+    for SERVICE in ${MANDATORY_SERVICES[@]}
+    do
+        systemctl --no-pager --no-legend list-units "$SERVICE" | { read -r _S LOAD ACTIVE RUN DESCRIPTION
+            if [ "$_S" == "" ]
+            then
+                alert "mandatory service $SERVICE not running (not found)"
+            elif [ "$RUN" != "running" ]
+            then
+                alert "mandatory service $SERVICE not running (loaded=$LOAD active=$ACTIVE run=$RUN)"
+            else
+                echo "mandatory service $SERVICE is running"
+            fi
+        }
+    done
 }
 
 check_disk_health() {
 
-	if detect_virt 
-	then
-               abort "this is a virtual machine, test is not relevant [ignoring test]"
-	       return
-	fi
+    if detect_virt
+    then
+        abort "this is a virtual machine, test is not relevant [ignoring test]"
+        return
+    fi
 
-	if [ -z "$(find_disks sd)" ]
-	then
-               abort "no SSD/HD found [ignoring test]"
-	       return
-	fi
+    if [ -z "$(find_disks sd)" ]
+    then
+        abort "no SSD/HD found [ignoring test]"
+        return
+    fi
 
-        if ! which smartctl >/dev/null
+    if ! which smartctl >/dev/null
+    then
+        abort "smartctl not installed (fix: apt-get install smartmontools) [ignoring test]"
+        return
+    fi
+
+    #if which lshw >/dev/null
+    #then
+    #       # disk list
+    #       DISKS=$(lshw -class disk -short -quiet | tail -n +3 | awk '{ print $2; }')
+    #else
+    #       echo "lshw not installed get disk list via /dev/disk (better via: apt-get install lshw)"
+    #       DISKS=$(readlink -f /dev/disk/by-id/* | grep -e '[a-z]$' | sort | uniq )
+    #fi
+
+    # foreach disk
+    for DISK in $( find_disks sd)
+    do
+        SHORT="${DISK##*/}"
+        explain "checking sd disk $DISK"
+        if [ -e "/sys/block/$SHORT/queue/rotational" ]
         then
-               abort "smartctl not installed (fix: apt-get install smartmontools) [ignoring test]"
-               return
+            if [ $(cat "/sys/block/$SHORT/queue/rotational") == 1 ]
+            then
+                echo "$DISK seems to be a HDD"
+            else
+                echo "$DISK seems to be a SSD"
+            fi
+        else
+            echo "$DISK is neither a HDD nor a SSD"
         fi
 
-        #if which lshw >/dev/null
-        #then
-        #       # disk list
-        #       DISKS=$(lshw -class disk -short -quiet | tail -n +3 | awk '{ print $2; }')
-        #else
-        #       echo "lshw not installed get disk list via /dev/disk (better via: apt-get install lshw)"
-        #       DISKS=$(readlink -f /dev/disk/by-id/* | grep -e '[a-z]$' | sort | uniq )
-        #fi
+        # foreach smartctl
 
-	# foreach disk
-        for DISK in $( find_disks sd)
-	do
-		SHORT="${DISK##*/}"
-		explain "checking sd disk $DISK"
-		if [ -e "/sys/block/$SHORT/queue/rotational" ]
-		then
-			if [ $(cat "/sys/block/$SHORT/queue/rotational") == 1 ]
-			then
-				echo "$DISK seems to be a HDD"
-			else
-				echo "$DISK seems to be a SSD"
-			fi
-		else
-			echo "$DISK is neither a HDD nor a SSD"
-		fi
+        # smartctl 6.6 2017-11-05 r4594 [x86_64-linux-4.19.0-8-amd64] (local build)
+        # Copyright (C) 2002-17, Bruce Allen, Christian Franke, www.smartmontools.org
+        #
+        # === START OF READ SMART DATA SECTION ===
+        # SMART Attributes Data Structure revision number: 16
+        # Vendor Specific SMART Attributes with Thresholds:
+        # ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+        #   1 Raw_Read_Error_Rate     0x000b   100   100   016    Pre-fail  Always       -       0
+        #   2 Throughput_Performance  0x0005   136   136   054    Pre-fail  Offline      -       80
+        #   3 Spin_Up_Time            0x0007   193   193   024    Pre-fail  Always       -       248 (Average 399)
+        #   4 Start_Stop_Count        0x0012   100   100   000    Old_age   Always       -       16
+        #   5 Reallocated_Sector_Ct   0x0033   100   100   005    Pre-fail  Always       -       0
+        #   7 Seek_Error_Rate         0x000b   100   100   067    Pre-fail  Always       -       0
+        #   8 Seek_Time_Performance   0x0005   145   145   020    Pre-fail  Offline      -       24
+        #   9 Power_On_Hours          0x0012   095   095   000    Old_age   Always       -       39172
+        #  10 Spin_Retry_Count        0x0013   100   100   060    Pre-fail  Always       -       0
+        #  12 Power_Cycle_Count       0x0032   100   100   000    Old_age   Always       -       16
+        # 192 Power-Off_Retract_Count 0x0032   100   100   000    Old_age   Always       -       16
+        # 193 Load_Cycle_Count        0x0012   100   100   000    Old_age   Always       -       16
+        # 194 Temperature_Celsius     0x0002   166   166   000    Old_age   Always       -       36 (Min/Max 18/49)
+        # 196 Reallocated_Event_Count 0x0032   100   100   000    Old_age   Always       -       0
+        # 197 Current_Pending_Sector  0x0022   100   100   000    Old_age   Always       -       0
+        # 198 Offline_Uncorrectable   0x0008   100   100   000    Old_age   Offline      -       0
+        # 199 UDMA_CRC_Error_Count    0x000a   200   200   000    Old_age   Always       -       0
 
-		# foreach smartctl
+        while read -r ID ATTRIBUTE_NAME FLAG VALUE WORST THRESH TYPE UPDATED WHEN_FAILED RAW_VALUE
+        do
+            [ -z "$ATTRIBUTE_NAME" ] && continue
+            [ -z "$RAW_VALUE" ] && continue
 
-		# smartctl 6.6 2017-11-05 r4594 [x86_64-linux-4.19.0-8-amd64] (local build)
-		# Copyright (C) 2002-17, Bruce Allen, Christian Franke, www.smartmontools.org
-		#
-		# === START OF READ SMART DATA SECTION ===
-		# SMART Attributes Data Structure revision number: 16
-		# Vendor Specific SMART Attributes with Thresholds:
-		# ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
-		#   1 Raw_Read_Error_Rate     0x000b   100   100   016    Pre-fail  Always       -       0
-		#   2 Throughput_Performance  0x0005   136   136   054    Pre-fail  Offline      -       80
-		#   3 Spin_Up_Time            0x0007   193   193   024    Pre-fail  Always       -       248 (Average 399)
-		#   4 Start_Stop_Count        0x0012   100   100   000    Old_age   Always       -       16
-		#   5 Reallocated_Sector_Ct   0x0033   100   100   005    Pre-fail  Always       -       0
-		#   7 Seek_Error_Rate         0x000b   100   100   067    Pre-fail  Always       -       0
-		#   8 Seek_Time_Performance   0x0005   145   145   020    Pre-fail  Offline      -       24
-		#   9 Power_On_Hours          0x0012   095   095   000    Old_age   Always       -       39172
-		#  10 Spin_Retry_Count        0x0013   100   100   060    Pre-fail  Always       -       0
-		#  12 Power_Cycle_Count       0x0032   100   100   000    Old_age   Always       -       16
-		# 192 Power-Off_Retract_Count 0x0032   100   100   000    Old_age   Always       -       16
-		# 193 Load_Cycle_Count        0x0012   100   100   000    Old_age   Always       -       16
-		# 194 Temperature_Celsius     0x0002   166   166   000    Old_age   Always       -       36 (Min/Max 18/49)
-		# 196 Reallocated_Event_Count 0x0032   100   100   000    Old_age   Always       -       0
-		# 197 Current_Pending_Sector  0x0022   100   100   000    Old_age   Always       -       0
-		# 198 Offline_Uncorrectable   0x0008   100   100   000    Old_age   Offline      -       0
-		# 199 UDMA_CRC_Error_Count    0x000a   200   200   000    Old_age   Always       -       0
+            # debug echo "$DISK $ATTRIBUTE_NAME $RAW_VALUE"
 
-		while read -r ID ATTRIBUTE_NAME FLAG VALUE WORST THRESH TYPE UPDATED WHEN_FAILED RAW_VALUE
-		do
-			[ -z "$ATTRIBUTE_NAME" ] && continue
-			[ -z "$RAW_VALUE" ] && continue
+            local do_alert="alert"
+            contains "$DISK" "${SILENT_BADSECTOR[@]}" && do_alert="silent_alert"
 
-			# debug echo "$DISK $ATTRIBUTE_NAME $RAW_VALUE" 
+            # source: https://en.wikipedia.org/wiki/S.M.A.R.T.#Known_ATA_S.M.A.R.T._attributes
+            case "$ID" in
+                "5")
+                    #id=5 "Reallocated_Sector_Ct" (bad for HD and SSD)
+                    echo "INFO: Reallocated Sector Count: $RAW_VALUE"
+                    [ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE bad sectors";
+                    ;;
+                "7")
+                    #id=5 "Spin_Retry_Count" (bad for HD)
+                    # https://kb.acronis.com/content/9110
+                    echo "INFO: Spin Retry Count: $RAW_VALUE"
+                    # TODO: warn if growing up [ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE spin retry";
+                    ;;
 
-			local do_alert="alert"
-			contains "$DISK" "${SILENT_BADSECTOR[@]}" && do_alert="silent_alert"
+                "187")
+                    #id=187 "Reported Uncorrectable Errors"    (bad SSD)
+                    echo "INFO: Reported Uncorrectable Errors: $RAW_VALUE"
+                    [ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE uncorrectable errors";
+                    ;;
 
-			# source: https://en.wikipedia.org/wiki/S.M.A.R.T.#Known_ATA_S.M.A.R.T._attributes
-			case "$ID" in 
-				"5")
-					#id=5 "Reallocated_Sector_Ct" (bad for HD and SSD)
-					echo "INFO: Reallocated Sector Count: $RAW_VALUE"
-					[ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE bad sectors";
-					;;
-				"7")
-					#id=5 "Spin_Retry_Count" (bad for HD)
-					# https://kb.acronis.com/content/9110
-					echo "INFO: Spin Retry Count: $RAW_VALUE"
-					# TODO: warn if growing up [ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE spin retry";
-					;;
-
-				"187")
-					#id=187 "Reported Uncorrectable Errors"	(bad SSD)
-					echo "INFO: Reported Uncorrectable Errors: $RAW_VALUE"
-					[ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE uncorrectable errors";
-					;;
-
-				"188")
-					#id=188 "Command Timeout"
+                "188")
+                    #id=188 "Command Timeout"
                                         RAW_VALUE="${RAW_VALUE%% *}" # remove all YY in "XX YY"
-					echo "INFO: Reported command timeout: $RAW_VALUE"
-					[ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE command timeout";
-					;;
+                    echo "INFO: Reported command timeout: $RAW_VALUE"
+                    [ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE command timeout";
+                    ;;
 
-				"194")
-					#id=194 Temperature_Celsius
+                "194")
+                    #id=194 Temperature_Celsius
                                         RAW_VALUE="${RAW_VALUE%% *}" # remove all YY in "XX YY"
-					echo "INFO: Temperature Celsius: $RAW_VALUE"
-					[ $RAW_VALUE -gt $BADTEMPLIMIT ] && $do_alert "$DISK has temperature $RAW_VALUE too high";
-					;;
+                    echo "INFO: Temperature Celsius: $RAW_VALUE"
+                    [ $RAW_VALUE -gt $BADTEMPLIMIT ] && $do_alert "$DISK has temperature $RAW_VALUE too high";
+                    ;;
 
-				"196")
-					#id=196 "Reallocation Event Count"
-					echo "INFO: Reported command timeout: $RAW_VALUE"
-					;;
+                "196")
+                    #id=196 "Reallocation Event Count"
+                    echo "INFO: Reported command timeout: $RAW_VALUE"
+                    ;;
 
-				"197")
-					#id=197 "Current_Pending_Sector"
-					echo "INFO: Current Pending Sector: $RAW_VALUE"
-					[ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE coming bad sectors";
-					;;
+                "197")
+                    #id=197 "Current_Pending_Sector"
+                    echo "INFO: Current Pending Sector: $RAW_VALUE"
+                    [ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE coming bad sectors";
+                    ;;
 
-				"201")
-					#id=201	"Soft Read Error Rate"
-					# https://kb.acronis.com/content/9137
-					RAW_VALUE="${RAW_VALUE%%/*}" # remove all /YY in "XX/YY"
-					echo "INFO: Soft read error: $RAW_VALUE"
-					# TODO: WARN if growing up [ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE read errors";
-					;;
+                "201")
+                    #id=201    "Soft Read Error Rate"
+                    # https://kb.acronis.com/content/9137
+                    RAW_VALUE="${RAW_VALUE%%/*}" # remove all /YY in "XX/YY"
+                    echo "INFO: Soft read error: $RAW_VALUE"
+                    # TODO: WARN if growing up [ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE read errors";
+                    ;;
 
-			esac
+            esac
 
-		done < <( smartctl -A /dev/$DISK 2>/dev/null )
-	done
+        done < <( smartctl -A /dev/$DISK 2>/dev/null )
+    done
 }
 
 check_mmc_health() {
 
-	# source: https://developer.toradex.com/linux-bsp/how-to/boot/emmc-linux/
+    # source: https://developer.toradex.com/linux-bsp/how-to/boot/emmc-linux/
 
-	# Device life time estimation type A: life time estimation for the MLC user partition eraseblocks, provided in steps of 10%, e.g.:
-	#   0x02 means 10%-20% device life time used.
-	# Device life time estimation type B: life time estimation for the SLC boot partition eraseblocks, provided in steps of 10%, e.g.:
-	#   0x02 means 10%-20% device life time used.
-	# Pre EOL information: overall status for reserved blocks. Possible values are:
-	#   0x00 - Not defined.
-	#   0x01 - Normal: consumed less than 80% of the reserved blocks.
-	#   0x02 - Warning: consumed 80% of the reserved blocks.
-	#   0x03 - Urgent: consumed 90% of the reserved blocks.
+    # Device life time estimation type A: life time estimation for the MLC user partition eraseblocks, provided in steps of 10%, e.g.:
+    #   0x02 means 10%-20% device life time used.
+    # Device life time estimation type B: life time estimation for the SLC boot partition eraseblocks, provided in steps of 10%, e.g.:
+    #   0x02 means 10%-20% device life time used.
+    # Pre EOL information: overall status for reserved blocks. Possible values are:
+    #   0x00 - Not defined.
+    #   0x01 - Normal: consumed less than 80% of the reserved blocks.
+    #   0x02 - Warning: consumed 80% of the reserved blocks.
+    #   0x03 - Urgent: consumed 90% of the reserved blocks.
 
-	if detect_virt
-	then
-               abort "this is a virtual machine, test is not relevant [ignoring test]"
-	       return
-	fi
+    if detect_virt
+    then
+        abort "this is a virtual machine, test is not relevant [ignoring test]"
+        return
+    fi
 
-	if [ -z "$(find_disks mmc)" ]
-	then
-               abort "no MMC found [ignoring test]"
-	       return
-	fi
+    if [ -z "$(find_disks mmc)" ]
+    then
+        abort "no MMC found [ignoring test]"
+        return
+    fi
 
-        if ! which mmc >/dev/null
+    if ! which mmc >/dev/null
+    then
+        abort "mmc not installed (fix: apt-get install mmc-utils) [ignoring test]"
+        return
+    fi
+
+    # foreach disk
+    for DISK in $( find_disks mmc)
+    do
+
+        explain "checking mmc disk $DISK"
+
+        mmc extcsd read /dev/$DISK | grep ^eMMC >/tmp/mmc.health
+
+        if [ -s /tmp/mmc.health ]
         then
-               abort "mmc not installed (fix: apt-get install mmc-utils) [ignoring test]"
-               return
+
+            cat /tmp/mmc.health
+
+            EOL=$(grep EXT_CSD_PRE_EOL_INFO /tmp/mmc.health | sed 's/.*: 0x//')
+
+            if [ $((16#$EOL)) -gt 2 ]
+            then
+                alert "mmc disk $DISK enter in his end of life (critical status)"
+            elif [ $((16#$EOL)) -gt 1 ]
+            then
+                alert "mmc disk $DISK enter in his end of life (warning status)"
+            fi
+        else
+            abort "no eMMC information [cannot perform test]"
         fi
 
-	# foreach disk
-        for DISK in $( find_disks mmc)
-	do
+        rm -f /tmp/mmc.health
 
-		explain "checking mmc disk $DISK"
-
-		mmc extcsd read /dev/$DISK | grep ^eMMC >/tmp/mmc.health
-
-		if [ -s /tmp/mmc.health ]
-		then
-
-			cat /tmp/mmc.health
-
-			EOL=$(grep EXT_CSD_PRE_EOL_INFO /tmp/mmc.health | sed 's/.*: 0x//')
-
-			if [ $((16#$EOL)) -gt 2 ]
-			then
-				alert "mmc disk $DISK enter in his end of life (critical status)"
-			elif [ $((16#$EOL)) -gt 1 ]
-			then
-				alert "mmc disk $DISK enter in his end of life (warning status)"
-			fi
-		else
-               		abort "no eMMC information [cannot perform test]"
-		fi
-
-		rm -f /tmp/mmc.health
-
-	done
+    done
 
 }
 
 check_partition_space() {
 
-	while read -r PARTITION FSTYPE IPCENT PCENT
-	do
-		IPCENT=${IPCENT%?}
-		PCENT=${PCENT%?}
+    while read -r PARTITION FSTYPE IPCENT PCENT
+    do
+        IPCENT=${IPCENT%?}
+        PCENT=${PCENT%?}
 
-		explain "checking partition $PARTITION"
+        explain "checking partition $PARTITION"
 
-		if [ $PCENT -ge $DISKLIMIT ]
-		then
-			alert "$PARTITION reached size limit: $PCENT %"
-		else
-			echo "$PARTITION size ok ($PCENT %)"
-		fi
+        if [ $PCENT -ge $DISKLIMIT ]
+        then
+            alert "$PARTITION reached size limit: $PCENT %"
+        else
+            echo "$PARTITION size ok ($PCENT %)"
+        fi
 
-		[ -z "$IPCENT" ] && continue
+        [ -z "$IPCENT" ] && continue
 
+        if [ $IPCENT -ge $DISKLIMIT ]
+        then
+            alert "$PARTITION reached inode size limit: $IPCENT %"
+        else
+            echo "$PARTITION inode size ok ($IPCENT %)"
+        fi
 
-		if [ $IPCENT -ge $DISKLIMIT ]
-		then
-			alert "$PARTITION reached inode size limit: $IPCENT %"
-		else
-			echo "$PARTITION inode size ok ($IPCENT %)"
-		fi
-
-	done < <( df -l --exclude-type="devtmpfs" --exclude-type="tmpfs" --exclude-type="overlay" --output="source,fstype,ipcent,pcent" | tail -n +2 )
+    done < <( df -l --exclude-type="devtmpfs" --exclude-type="tmpfs" --exclude-type="overlay" --output="source,fstype,ipcent,pcent" | tail -n +2 )
 }
 
 check_partition_writable() {
-	# FIXME: must do it
-	true
+    if [ ${#PARTITIONS_WRITABLE[@]} == 0 ]
+    then
+        abort "no partition writable to check"
+        return
+    fi
+
+    for PARTITION in ${PARTITIONS_WRITABLE[@]}
+    do
+        if ! mountpoint -q $PARTITION
+        then
+            alert "$PARTITION is not a partition..."
+        fi
+
+        if ! touch $PARTITION/.host-tool-check 2>/dev/null
+        then
+            alert "$PARTITION is not a writable"
+        else
+            echo "$PARTITION is writable"
+        fi
+        rm -f $PARTITION/.host-tool-check
+    done
 }
 
 check_docker() {
 
-        if [ ${#MANDATORY_DOCKERS[@]} == 0 ]
+    if [ ${#MANDATORY_DOCKERS[@]} == 0 ]
+    then
+        abort "no docker image in config"
+        return
+    fi
+
+    if ! which docker >/dev/null
+    then
+        alert "docker not installed (fix: apt-get install docker-ce) [ignoring test]"
+        return
+    fi
+
+    # check containers are running
+    for INSTANCE in ${MANDATORY_DOCKERS[@]}
+    do
+
+        echo
+        explain "checking that mandatory docker $INSTANCE running"
+        if [[ $(docker inspect -f '{{.State.Running}}' $INSTANCE 2>/dev/null) != "true" ]]
         then
-               abort "no docker image in config"
-               return
+            alert "mandatory container $INSTANCE not running"
+            continue
         fi
 
-        if ! which docker >/dev/null
+        if [[ $(docker inspect -f '{{.State.Paused}}' $INSTANCE 2>/dev/null) == "true" ]]
         then
-               alert "docker not installed (fix: apt-get install docker-ce) [ignoring test]"
-               return
+            alert "mandatory container $INSTANCE is paused"
+            continue
         fi
 
-	# check containers are running 
-	for INSTANCE in ${MANDATORY_DOCKERS[@]}
-	do
+        local IMAGE=`docker container inspect -f '{{ .Config.Image}}' $INSTANCE`
+        local VERSION=`docker container inspect -f '{{ index .Config.Labels "org.opencontainers.image.version" }}' $INSTANCE`
 
-		echo
-		explain "checking that mandatory docker $INSTANCE running"
-		if [[ $(docker inspect -f '{{.State.Running}}' $INSTANCE 2>/dev/null) != "true" ]]
-		then
-			alert "mandatory container $INSTANCE not running"
-                       continue
-               fi
+        if [ -z "$VERSION" ]
+        then
+            VERSION="-unknown-"
+        fi
 
-               if [[ $(docker inspect -f '{{.State.Paused}}' $INSTANCE 2>/dev/null) == "true" ]]
-               then
-                       alert "mandatory container $INSTANCE is paused"
-                       continue
-               fi
+        echo "container $INSTANCE is using image: $IMAGE with version: $VERSION"
 
-		local IMAGE=`docker container inspect -f '{{ .Config.Image}}' $INSTANCE`
-		local VERSION=`docker container inspect -f '{{ index .Config.Labels "org.opencontainers.image.version" }}' $INSTANCE`
+        LOCAL_HASH=`docker image inspect $IMAGE -f '{{ index .RepoDigests 0 }}' 2>/dev/null | cut -d @ -f 2`
 
-		if [ -z "$VERSION" ]
-		then
-			VERSION="-unknown-"
-		fi
+        if [ -z "$LOCAL_HASH" ]
+        then
+            echo container $INSTANCE is using a local image $IMAGE
+        else
+            TAG=${IMAGE#*:}
+            if [[ $IMAGE =~ / ]];
+            then
+                    FULLIMAGE=${IMAGE%:*}
+            else
+                    FULLIMAGE=library/${IMAGE%:*}
+            fi
 
-		echo "container $INSTANCE is using image: $IMAGE with version: $VERSION"
+            # FIXME: should cache answer to avoid flood
+            REGISTRY_HASH=`curl -s --header 'Accept: application/json' "https://hub.docker.com/v2/repositories/$FULLIMAGE/tags/$TAG"  | jq -r '.digest'`
 
-                LOCAL_HASH=`docker image inspect $IMAGE -f '{{ index .RepoDigests 0 }}' 2>/dev/null | cut -d @ -f 2`
- 
-                if [ -z "$LOCAL_HASH" ]
+            case $REGISTRY_HASH in
+                null)
+                    echo "not in registry or got an error"
+                    ;;
+
+                $LOCAL_HASH)
+                    echo "container $INSTANCE is using same $IMAGE on registry ($REGISTRY_HASH)"
+                    ;;
+                *)
+                    silent_alert "container $INSTANCE is using an old image $IMAGE (found a new hash on registry: $REGISTRY_HASH)"
+                    ;;
+            esac
+        fi
+
+        explain "checking container $INSTANCE security"
+        # container is running, check if need upgrade/a rebuilt
+
+        # FIXME avoid docker exec in this case
+        # DISTRIBUTION=$(docker container export $INSTANCE | tar -xO etc/os-release 2>/dev/null | grep ^ID= | cut -d "=" -f 2)
+        DISTRIBUTION=$(docker container exec $INSTANCE /bin/sh -c 'grep ^ID= /etc/os-release' | cut -d "=" -f 2)
+
+        case $DISTRIBUTION in
+
+            debian)
+                echo "$INSTANCE is a debian"
+
+                docker container exec $INSTANCE /bin/sh -c 'apt-get update >/dev/null 2>/dev/null; apt-get upgrade -s; apt-get clean; rm -rf /var/lib/apt/lists/*' >"/tmp/container-$INSTANCE.package-upgrade"
+                if grep -i security "/tmp/container-$INSTANCE.package-upgrade"
                 then
-                        echo container $INSTANCE is using a local image $IMAGE
- 
-                else
-                        TAG=${IMAGE#*:}
-                        if [[ $IMAGE =~ / ]];
-                        then
-                                FULLIMAGE=${IMAGE%:*}
-                        else
-                                FULLIMAGE=library/${IMAGE%:*}
-                        fi
- 
-                        # FIXME: should cache answer to avoid flood
-                        REGISTRY_HASH=`curl -s --header 'Accept: application/json' "https://hub.docker.com/v2/repositories/$FULLIMAGE/tags/$TAG"  | jq -r '.digest'`
- 
-                        case $REGISTRY_HASH in
-                                null)
-                                        echo "not in registry or got an error"
-                                        ;;
- 
-                                $LOCAL_HASH)
-					echo "container $INSTANCE is using same $IMAGE on registry ($REGISTRY_HASH)"
-					;;
-				*)
-					silent_alert "container $INSTANCE is using an old image $IMAGE (found a new hash on registry: $REGISTRY_HASH)"
-					;;
-			esac
-		fi	
+                    local do_alert="alert"
+                    contains "$INSTANCE" "${SILENT_DOCKER_NEEDUPGRADE[@]}" && do_alert="silent_alert"
+                    $do_alert "container $INSTANCE need security upgrade (or a rebuild)"
+                fi
 
-		explain "checking container $INSTANCE security"
-		# container is running, check if need upgrade/a rebuilt
+                rm -f "/tmp/container-$INSTANCE.package-upgrade"
 
-		# FIXME avoid docker exec in this case
-		# DISTRIBUTION=$(docker container export $INSTANCE | tar -xO etc/os-release 2>/dev/null | grep ^ID= | cut -d "=" -f 2)
-		DISTRIBUTION=$(docker container exec $INSTANCE /bin/sh -c 'grep ^ID= /etc/os-release' | cut -d "=" -f 2)
+                ;;
+            alpine)
+                echo "$INSTANCE is an alpine"
 
-		case $DISTRIBUTION in
+                docker container exec $INSTANCE /bin/sh -c 'apk update >/dev/null 2>/dev/null; apk version | tail -n +2' >"/tmp/container-$INSTANCE.package-upgrade"
 
-			debian)
-				echo "$INSTANCE is a debian"
+                if [ ! -z "$(cat /tmp/container-$INSTANCE.package-upgrade)" ]
+                then
+                    cat /tmp/container-$INSTANCE.package-upgrade
+                    local do_alert="alert"
+                    contains "$INSTANCE" "${SILENT_DOCKER_NEEDUPGRADE[@]}" && do_alert="silent_alert"
+                    $do_alert "container $INSTANCE need upgrade (or a rebuild)"
+                fi
 
-				docker container exec $INSTANCE /bin/sh -c 'apt-get update >/dev/null 2>/dev/null; apt-get upgrade -s; apt-get clean; rm -rf /var/lib/apt/lists/*' >"/tmp/container-$INSTANCE.package-upgrade"
-				if grep -i security "/tmp/container-$INSTANCE.package-upgrade"
-				then
-					local do_alert="alert"
-					contains "$INSTANCE" "${SILENT_DOCKER_NEEDUPGRADE[@]}" && do_alert="silent_alert"
-					$do_alert "container $INSTANCE need security upgrade (or a rebuild)"
-				fi
+                rm -f "/tmp/container-$INSTANCE.package-upgrade"
 
-				rm -f "/tmp/container-$INSTANCE.package-upgrade"
-
-				;;
-			alpine)
-				echo "$INSTANCE is an alpine"
-
-				docker container exec $INSTANCE /bin/sh -c 'apk update >/dev/null 2>/dev/null; apk version | tail -n +2' >"/tmp/container-$INSTANCE.package-upgrade"
-
-				if [ ! -z "$(cat /tmp/container-$INSTANCE.package-upgrade)" ]
-				then
-					cat /tmp/container-$INSTANCE.package-upgrade
-					local do_alert="alert"
-					contains "$INSTANCE" "${SILENT_DOCKER_NEEDUPGRADE[@]}" && do_alert="silent_alert"
-					$do_alert "container $INSTANCE need upgrade (or a rebuild)"
-				fi
-
-				rm -f "/tmp/container-$INSTANCE.package-upgrade"
-
-				;;
-			ubuntu)
-				# FIXME: should not ignore but check that container can go outside
-				abort "ignoring $INSTANCE ubuntu"
-				;;
-			*)
-				abort "$INSTANCE is an unknown distribution ($DISTRIBUTION)"
-				;;
-		esac
+                ;;
+            ubuntu)
+                # FIXME: should not ignore but check that container can go outside
+                abort "ignoring $INSTANCE ubuntu"
+                ;;
+            *)
+                abort "$INSTANCE is an unknown distribution ($DISTRIBUTION)"
+                ;;
+        esac
 
 
-	done
+    done
 
-	echo
-	explain "check for looping containers"
-	for INSTANCE in $(docker ps --format '{{.Names}}')
-	do 
-		local RESTARTCOUNT=$(docker inspect -f '{{.RestartCount}}' $INSTANCE)
-		if [ $RESTARTCOUNT -gt 5 ]
-		then
-			local do_alert="alert"
-			$do_alert "container $INSTANCE is restarting too many times ($RESTARTCOUNT times)"
-		fi
-	done
+    echo
+    explain "check for looping containers"
+    for INSTANCE in $(docker ps --format '{{.Names}}')
+    do
+        local RESTARTCOUNT=$(docker inspect -f '{{.RestartCount}}' $INSTANCE)
+        if [ $RESTARTCOUNT -gt 5 ]
+        then
+            local do_alert="alert"
+            $do_alert "container $INSTANCE is restarting too many times ($RESTARTCOUNT times)"
+        fi
+    done
 
-	explain "check for dead containers" 
-	for INSTANCE in $(docker container ls -a --format "{{.Names}}" --filter "status=dead")
-	do
-		local do_alert="alert"
-		$do_alert "container $INSTANCE is dead"
-	done
+    explain "check for dead containers"
+    for INSTANCE in $(docker container ls -a --format "{{.Names}}" --filter "status=dead")
+    do
+        local do_alert="alert"
+        $do_alert "container $INSTANCE is dead"
+    done
 
-	explain "check for OOMKilled containers"
-	for INSTANCE in $(docker ps --filter "status=dead" --filter "status=exited" --format '{{.Names}}')
-	do
-		if [ $(docker inspect -f '{{.State.OOMKilled}}' $INSTANCE 2>/dev/null) == "true" ]
-		then
-			local do_alert="alert"
-			$do_alert "container $INSTANCE has been OOMKilled"
-		fi
-	done
+    explain "check for OOMKilled containers"
+    for INSTANCE in $(docker ps --filter "status=dead" --filter "status=exited" --format '{{.Names}}')
+    do
+        if [ $(docker inspect -f '{{.State.OOMKilled}}' $INSTANCE 2>/dev/null) == "true" ]
+        then
+            local do_alert="alert"
+            $do_alert "container $INSTANCE has been OOMKilled"
+        fi
+    done
 
-	explain "check for unhealthy containers" 
-	for INSTANCE in $(docker container ls --format "{{.Names}}" --filter "health=unhealthy")
-	do
-		local do_alert="alert"
-		$do_alert "container $INSTANCE is unhealthy"
-	done
+    explain "check for unhealthy containers"
+    for INSTANCE in $(docker container ls --format "{{.Names}}" --filter "health=unhealthy")
+    do
+        local do_alert="alert"
+        $do_alert "container $INSTANCE is unhealthy"
+    done
 }
 
 check_last_backup() {
-	# FIXME: must do it
-	true
+    # FIXME: must do it
+    true
 }
 
 
 check_raid() {
 
-	if detect_virt
-	then
-               abort "this is a virtual machine, test is not relevant [ignoring test]"
-	       return
-	fi
+    if detect_virt
+    then
+        abort "this is a virtual machine, test is not relevant [ignoring test]"
+        return
+    fi
 
+    if [ ! -f '/proc/mdstat' ]
+    then
+        abort "no raid (soft) found ignore test"
+        return 0
+    fi
 
-	if [ ! -f '/proc/mdstat' ]
-	then
-		abort "no raid (soft) found ignore test"
-		return 0
-	fi
+    while read -r DEVICE ACTIVE TYPE  STATUS
+    do
+        # keep only active parition (do we need to check other state ?)
+        [ "$ACTIVE" != "active" ] && continue
 
-	while read -r DEVICE ACTIVE TYPE  STATUS
-	do
-		# keep only active parition (do we need to check other state ?)
-		[ "$ACTIVE" != "active" ] && continue 
+        local do_alert="alert"
+        contains "$DEVICE" "${SILENT_RAID[@]}" && do_alert="silent_alert"
 
-		local do_alert="alert"
-		contains "$DEVICE" "${SILENT_RAID[@]}" && do_alert="silent_alert"
-
-		if [[ "$STATUS" =~ ^\[U+\]$ ]]
-		then
-			echo "raid $DEVICE ($TYPE) is clean"
-		else
-			$do_alert "raid $DEVICE ($TYPE) is degraded"
-		fi
-	done < <( awk '/^md.*:/{ printf $1 " " $3 " " $4 " "; getline; print $NF}' <'/proc/mdstat')
+        if [[ "$STATUS" =~ ^\[U+\]$ ]]
+        then
+            echo "raid $DEVICE ($TYPE) is clean"
+        else
+            $do_alert "raid $DEVICE ($TYPE) is degraded"
+        fi
+    done < <( awk '/^md.*:/{ printf $1 " " $3 " " $4 " "; getline; print $NF}' <'/proc/mdstat')
 
 }
 
 check_github_releases() {
 
-	# TODO: check for future: https://forums.docker.com/t/how-can-i-list-tags-for-a-repository/32577/8 (verify tag list on github) 
+    # TODO: check for future: https://forums.docker.com/t/how-can-i-list-tags-for-a-repository/32577/8 (verify tag list on github) 
 
-        if [ ${#GITHUB_RELEASES[@]} == 0 ]
-	then
-               abort "no release to check"
-               return
-	fi
+    if [ ${#GITHUB_RELEASES[@]} == 0 ]
+    then
+        abort "no release to check"
+        return
+    fi
 
-	if ! which jq >/dev/null
-	then
-		alert "jq not found (fix via: apt-get install jq)"
-		return 1
-	fi
+    if ! which jq >/dev/null
+    then
+        alert "jq not found (fix via: apt-get install jq)"
+        return 1
+    fi
 
-	if ! which curl >/dev/null
-	then
-		alert "curl not found (fix via: apt-get install curl)"
-		return 1
-	fi
+    if ! which curl >/dev/null
+    then
+        alert "curl not found (fix via: apt-get install curl)"
+        return 1
+    fi
 
- 	local NOW=$(date +'%s')
+    local NOW=$(date +'%s')
 
-	test -d "$LIBDIR/cache" || mkdir "$LIBDIR/cache"
+    test -d "$LIBDIR/cache" || mkdir "$LIBDIR/cache"
 
-	# note: prefer ls rather for CACHE in "$LIBDIR"/cache/github.*, will cover empty directory
-	for CACHE in $(ls "$LIBDIR"/cache/github.* 2>/dev/null)
-	do
-		local CTIME=$(stat -c '%Y' $CACHE)
-		if [ $[ $NOW - $CTIME ] -gt $[ 3600 * 24 * $GITHUB_CACHE_TTL ] ] 
-		then
-			echo "$CACHE is older than $GITHUB_CACHE_TTL days, purging it"
-			rm -f $CACHE
-		fi
+    # note: prefer ls rather for CACHE in "$LIBDIR"/cache/github.*, will cover empty directory
+    for CACHE in $(ls "$LIBDIR"/cache/github.* 2>/dev/null)
+    do
+        local CTIME=$(stat -c '%Y' $CACHE)
+        if [ $[ $NOW - $CTIME ] -gt $[ 3600 * 24 * $GITHUB_CACHE_TTL ] ]
+        then
+            echo "$CACHE is older than $GITHUB_CACHE_TTL days, purging it"
+            rm -f $CACHE
+        fi
 
-	done
+    done
 
-	for GITHUB_RELEASE in ${GITHUB_RELEASES[@]}
-	do
-		echo
+    for GITHUB_RELEASE in ${GITHUB_RELEASES[@]}
+    do
+        echo
 
-		# FIXME: replace 'cut' with bash subtitutions
-		local FULLREPO=$(echo $GITHUB_RELEASE | cut -d ':' -f 1)
-		local CURRENT_RELEASE=$(echo $GITHUB_RELEASE | cut -d ':' -f 2)
+        # FIXME: replace 'cut' with bash subtitutions
+        local FULLREPO=$(echo $GITHUB_RELEASE | cut -d ':' -f 1)
+        local CURRENT_RELEASE=$(echo $GITHUB_RELEASE | cut -d ':' -f 2)
 
-		# FIXME: test that FULLREPO contains /
-		local OWNER=$(echo $FULLREPO | cut -d '/' -f 1)
-		local REPO=$(echo $FULLREPO | cut -d '/' -f 2)
+        # FIXME: test that FULLREPO contains /
+        local OWNER=$(echo $FULLREPO | cut -d '/' -f 1)
+        local REPO=$(echo $FULLREPO | cut -d '/' -f 2)
 
-		explain "checking github $OWNER/$REPO, current release $CURRENT_RELEASE"
+        explain "checking github $OWNER/$REPO, current release $CURRENT_RELEASE"
 
-		URL="https://api.github.com/repos/$OWNER/$REPO/releases/latest" 
+        URL="https://api.github.com/repos/$OWNER/$REPO/releases/latest"
 
-		CACHE="$LIBDIR/cache/github.$OWNER-$REPO.latest"
+        CACHE="$LIBDIR/cache/github.$OWNER-$REPO.latest"
 
-		local do_alert="alert"
+        local do_alert="alert"
 
-		if [ -e $CACHE ]
-		then
-			echo "using cache $CACHE"
-			do_alert="silent_alert"
-		else	
-			echo "fetching $URL to $CACHE"
-			curl -s -H 'User-Agent: host-tools' -H 'Accept: application/vnd.github+json' $URL > $CACHE
-		fi
+        if [ -e $CACHE ]
+        then
+            echo "using cache $CACHE"
+            do_alert="silent_alert"
+        else
+            echo "fetching $URL to $CACHE"
+            curl -s -H 'User-Agent: host-tools' -H 'Accept: application/vnd.github+json' $URL > $CACHE
+        fi
 
-		ERROR=$(cat $CACHE | jq -r '.message')
+        ERROR=$(cat $CACHE | jq -r '.message')
 
-		if [ "$ERROR" != "null" ]
-		then
-			$do_alert "github check $OWNER/$REPO: error reading api: $ERROR"
-			rm -f $CACHE
-			continue
-		fi
+        if [ "$ERROR" != "null" ]
+        then
+            $do_alert "github check $OWNER/$REPO: error reading api: $ERROR"
+            rm -f $CACHE
+            continue
+        fi
 
-		RELEASE=$(cat $CACHE | jq -r '.tag_name')
+        RELEASE=$(cat $CACHE | jq -r '.tag_name')
 
-		if [ -z "$RELEASE" ] 
-		then
-			$do_alert "github check $OWNER/$REPO: unable to parse $CACHE"
-			continue
-		fi
+        if [ -z "$RELEASE" ]
+        then
+            $do_alert "github check $OWNER/$REPO: unable to parse $CACHE"
+            continue
+        fi
 
-		if [ "$CURRENT_RELEASE" != "$RELEASE" ]
-		then
-			$do_alert "github $OWNER/$REPO release $RELEASE is available (current=$CURRENT_RELEASE)"
-			continue
-		fi
+        if [ "$CURRENT_RELEASE" != "$RELEASE" ]
+        then
+            $do_alert "github $OWNER/$REPO release $RELEASE is available (current=$CURRENT_RELEASE)"
+            continue
+        fi
 
-		echo "github $OWNER/$REPO release match ($RELEASE)"
-	done
+        echo "github $OWNER/$REPO release match ($RELEASE)"
+    done
 }
 
 check_mount_points() {
 
-	#FIXME must be dynamic
-	# check data mounted
-	for DATA in ${PARTITIONS[@]}
-	do
-		# follow link if necessary
-		if [ -L $DATA ] 
-		then
-			TARGET=$(readlink -f $DATA)
-			if [ -z "$TARGET" ]
-			then
-				alert "wrong symlink $DATA"
-				continue
-			fi
-			DATA=$TARGET
-		fi
-		explain "checking partition $DATA is mounted"
+    #FIXME must be dynamic
+    # check data mounted
+    for DATA in ${PARTITIONS[@]}
+    do
+        # follow link if necessary
+        if [ -L $DATA ]
+        then
+            TARGET=$(readlink -f $DATA)
+            if [ -z "$TARGET" ]
+            then
+                alert "wrong symlink $DATA"
+                continue
+            fi
+            DATA=$TARGET
+        fi
+        explain "checking partition $DATA is mounted"
 
-		mountpoint -q $DATA || alert "$DATA not mounted"
-	done
+        mountpoint -q $DATA || alert "$DATA not mounted"
+    done
 
 }
 
 check_file_exists() {
 
-	for FILE in ${MANDATORY_FILES[@]}
-	do
-		explain "checking that $FILE exists"
-		[ -e $FILE ] || alert "$FILE does not exist, please check"
+    for FILE in ${MANDATORY_FILES[@]}
+    do
+        explain "checking that $FILE exists"
+        [ -e $FILE ] || alert "$FILE does not exist, please check"
 
-	done
+    done
 }
 
 check_need_reboot() {
-	if [ \( -f "/var/run/reboot-required" \) -o \( -f "/var/run/reboot-required.pkgs" \) ]
-	then
-		alert "system need a reboot"
-	fi
+    if [ \( -f "/var/run/reboot-required" \) -o \( -f "/var/run/reboot-required.pkgs" \) ]
+    then
+        alert "system need a reboot"
+    fi
 }
 
 check_farm() {
 
-	# XXX: this check is supposed to be minimalist, if you are interested in managing famrs, I recommand 'consul' or similar
-	#
-	explain "checking hosts ping"
+    # XXX: this check is supposed to be minimalist, if you are interested in managing famrs, I recommand 'consul' or similar
+    #
+    explain "checking hosts ping"
 
-        if [ -n "$DOMAIN" ]
-	then
-               if ! which dig >/dev/null
-               then
-                       alert "dig not found, I advise you to 'apt install dnsutils'"
-               else
-                       echo "discovering $DOMAIN farm using DNS..."
-                       for HOST in $(dig +short SRV farm.$DOMAIN | sed 's/^[0-9 ]\+ //; s/\.$//' | sort )
-                       do
-                               HOSTS+=( $HOST )
-                       done
-               fi
-
-	fi
-
-        if [ ${#HOSTS[@]} -eq 0 ]
+    if [ -n "$DOMAIN" ]
+    then
+        if ! which dig >/dev/null
         then
- 		abort "no host to check"
-		return 0
+            alert "dig not found, I advise you to 'apt install dnsutils'"
+        else
+            echo "discovering $DOMAIN farm using DNS..."
+            for HOST in $(dig +short SRV farm.$DOMAIN | sed 's/^[0-9 ]\+ //; s/\.$//' | sort )
+            do
+                HOSTS+=( $HOST )
+            done
         fi
 
-	if ! which fping >/dev/null
-	then
-		# fallback
-	
-		abort "fping not found, fall back to ping. I recommand you to 'apt install fping'"
+    fi
 
-		for SERVER in "${HOSTS[@]}"
-		do
-			explain "checking server $SERVER (ping)"
+    if [ ${#HOSTS[@]} -eq 0 ]
+    then
+        abort "no host to check"
+        return 0
+    fi
 
-			if [ "$SERVER" == "$HOSTNAME" ]
-			then
-				echo "I am $SERVER, no need to test :)"
-				continue
-			fi
+    if ! which fping >/dev/null
+    then
+        # fallback
 
-			if ping -q -c 3 $SERVER >/dev/null
-			then
-				echo ping: $SERVER is alive
-			else
+        abort "fping not found, fall back to ping. I recommand you to 'apt install fping'"
 
-				local do_alert="alert"
-				contains "$SERVER" "${SILENT_HOSTDOWN[@]}" && do_alert="silent_alert"
-				$do_alert "no ping answer from $SERVER"
-			fi
-		done
+        for SERVER in "${HOSTS[@]}"
+        do
+            explain "checking server $SERVER (ping)"
 
-		return 0
-	fi 
+            if [ "$SERVER" == "$HOSTNAME" ]
+            then
+                echo "I am $SERVER, no need to test :)"
+                continue
+            fi
 
-	fping -c 3 -q -B 1.5 "${HOSTS[@]}" 2>/tmp/host-tools.ping
+            if ping -q -c 3 $SERVER >/dev/null
+            then
+                echo ping: $SERVER is alive
+            else
 
-	cat /tmp/host-tools.ping
+                local do_alert="alert"
+                contains "$SERVER" "${SILENT_HOSTDOWN[@]}" && do_alert="silent_alert"
+                $do_alert "no ping answer from $SERVER"
+            fi
+        done
 
-	while read -r SERVER PREPORT
-	do 
-		local do_alert="alert"
-		contains "$SERVER" "${SILENT_HOSTDOWN[@]}" && do_alert="silent_alert"
-		$do_alert "ping error from: $SERVER $PREPORT"
+        return 0
+    fi
 
-	done < <(grep -v "min/avg/max" /tmp/host-tools.ping)
+    fping -c 3 -q -B 1.5 "${HOSTS[@]}" 2>/tmp/host-tools.ping
 
-	rm -f /tmp/host-tools.ping
+    cat /tmp/host-tools.ping
+
+    while read -r SERVER PREPORT
+    do
+        local do_alert="alert"
+        contains "$SERVER" "${SILENT_HOSTDOWN[@]}" && do_alert="silent_alert"
+        $do_alert "ping error from: $SERVER $PREPORT"
+
+    done < <(grep -v "min/avg/max" /tmp/host-tools.ping)
+
+    rm -f /tmp/host-tools.ping
 
 }
 
 
 check_ssl() {
+    if [ ${#SSL_CONNECTIONS[@]} == 0 ]
+    then
+           abort "no ssl check to perform"
+           return
+    fi
 
+    if ! which openssl >/dev/null
+    then
+        alert "openssl not found (fix via: apt-get install openssl)"
+        return 1
+    fi
 
+    # FIXME add way to check certificates via starttls
+    #openssl s_client -servername ... -starttls imap -crlf -connect mail....:143
+    #openssl s_client -servername ... -starttls smtp -crlf -connect mail....:25
 
-        if [ ${#SSL_CONNECTIONS[@]} == 0 ]
+    for CONNECTION in ${SSL_CONNECTIONS[@]}
+    do
+        local FQDN="${CONNECTION%:*}"
+        local PORT="${CONNECTION#*:}"
+        test -z "$PORT" && PORT=443
+
+        explain "checking $FQDN port $PORT"
+
+        local SSL=$(openssl s_client -servername $FQDN -host $FQDN -port $PORT </dev/null 2>/dev/null | openssl x509 -noout -noout -checkend $((3600*24*$SSL_PREVENTION_EXPIRATION)) -ext subjectAltName | tail -n +2)
+
+        if !( echo $SSL | grep -q "DNS:$FQDN" )
         then
-               abort "no ssl check to perform"
-               return
+            alert "certificate $FQDN mismatch fqdn"
         fi
 
+        if ( echo $SSL | grep -q "Certificate will expire" )
+        then
+            local EXPIRATION=$(openssl s_client -servername $FQDN -host $FQDN -port $PORT </dev/null 2>/dev/null | openssl x509 -noout -enddate | cut -d '=' -f 2 | sed 's/ ..:..:../,/; s/ GMT$//;')
+            alert "please renew certificate $FQDN that will expire the $EXPIRATION (less than $SSL_PREVENTION_EXPIRATION days)"
+        fi
 
-	if ! which openssl >/dev/null
-	then
-		alert "openssl not found (fix via: apt-get install openssl)"
-		return 1
-	fi
-
-	# FIXME add way to check certificates via starttls
-	#openssl s_client -servername ... -starttls imap -crlf -connect mail....:143
-	#openssl s_client -servername ... -starttls smtp -crlf -connect mail....:25
-
-
-	for CONNECTION in ${SSL_CONNECTIONS[@]}
-	do
-		local FQDN="${CONNECTION%:*}"
-		local PORT="${CONNECTION#*:}"
-		test -z "$PORT" && PORT=443
-
-		explain "checking $FQDN port $PORT"
-
-		local SSL=$(openssl s_client -servername $FQDN -host $FQDN -port $PORT </dev/null 2>/dev/null | openssl x509 -noout -noout -checkend $((3600*24*$SSL_PREVENTION_EXPIRATION)) -ext subjectAltName | tail -n +2)
-
-		if !( echo $SSL | grep -q "DNS:$FQDN" ) 
-		then
-			alert "certificate $FQDN mismatch fqdn"
-		fi
-
-		if ( echo $SSL | grep -q "Certificate will expire" ) 
-		then
-			local EXPIRATION=$(openssl s_client -servername $FQDN -host $FQDN -port $PORT </dev/null 2>/dev/null | openssl x509 -noout -enddate | cut -d '=' -f 2 | sed 's/ ..:..:../,/; s/ GMT$//;')
-			alert "please renew certificate $FQDN that will expire the $EXPIRATION (less than $SSL_PREVENTION_EXPIRATION days)"
-		fi
-
-	done
+    done
 }
 
 check_http() {
 
-        if [ ${#HTTP_CHECKS[@]} == 0 ]
+    if [ ${#HTTP_CHECKS[@]} == 0 ]
+    then
+        abort "no http check to perform"
+        return
+    fi
+
+    if ! which curl >/dev/null
+    then
+        alert "curl not found (fix via: apt-get install curl)"
+        return 1
+    fi
+
+    for HTTP_CHECK in ${HTTP_CHECKS[@]}
+    do
+
+        URL=$(echo "$HTTP_CHECK" | cut -d '|' -f 1 )
+        TYPE=$(echo "$HTTP_CHECK" | cut -d '|' -f 2 )
+        TARGET=$(echo "$HTTP_CHECK" | cut -d '|' -f 3 )
+        METHOD=$(echo "$HTTP_CHECK" | cut -d '|' -f 4 )
+        [ -z "$METHOD" ] && METHOD="GET"
+
+
+        #explain "testing $URL expecting $TYPE with target $TARGET"
+
+        FILTER="head -n 1"
+
+        case $TYPE in
+            AUTHREQUIRED)
+                REGEX="HTTP.*401"
+                ;;
+            FORBIDDEN)
+                REGEX="HTTP.*403"
+                ;;
+            NOTFOUND)
+                REGEX="HTTP.*404"
+                ;;
+            NOTALLOWED)
+                REGEX="HTTP.*405"
+                ;;
+            REDIRECT)
+                #  no filter
+                FILTER="cat"
+                REGEX="location: $TARGET"
+                ;;
+            OK)
+                REGEX="HTTP.*200"
+                ;;
+            *)
+                alert "wrong format in HTTP_CHECKS, please use: <url>|<AUTHREQUIRED|FORBIDDEN|NOTFOUND|NOTALLOWED|REDIRECT|OK>|<target>"
+                return 1
+                ;;
+        esac
+
+        if curl -s -D - -o /dev/null -X $METHOD --header 'User-Agent: host-tool/check' "$URL" | $FILTER | grep -q -e "$REGEX"
         then
-               abort "no http check to perform"
-               return
+            echo "http check $METHOD $URL is a correct $TYPE $TARGET"
+        else
+            alert "http check $METHOD $URL failed for $TYPE"
         fi
-
-	if ! which curl >/dev/null
-	then
-		alert "curl not found (fix via: apt-get install curl)"
-		return 1
-	fi
-
-	for HTTP_CHECK in ${HTTP_CHECKS[@]}
-	do
-
-		URL=$(echo "$HTTP_CHECK" | cut -d '|' -f 1 )
-		TYPE=$(echo "$HTTP_CHECK" | cut -d '|' -f 2 )
-		TARGET=$(echo "$HTTP_CHECK" | cut -d '|' -f 3 )
-		METHOD=$(echo "$HTTP_CHECK" | cut -d '|' -f 4 )
-		[ -z "$METHOD" ] && METHOD="GET"
-
-
-		#explain "testing $URL expecting $TYPE with target $TARGET"
-
-		FILTER="head -n 1"
-
-		case $TYPE in 
-			AUTHREQUIRED)
-				REGEX="HTTP.*401"
-				;;
-			FORBIDDEN)
-				REGEX="HTTP.*403"
-				;;
-			NOTFOUND)
-				REGEX="HTTP.*404"
-				;;
-			NOTALLOWED)
-				REGEX="HTTP.*405"
-				;;
-			REDIRECT)
-				#  no filter 
-				FILTER="cat"
-				REGEX="location: $TARGET"
-				;;
-			OK)
-				REGEX="HTTP.*200"
-				;;
-			*)
-				alert "wrong format in HTTP_CHECKS, please use: <url>|<AUTHREQUIRED|FORBIDDEN|NOTFOUND|NOTALLOWED|REDIRECT|OK>|<target>"
-				return 1
-				;;
-		esac
-
-		if curl -s -D - -o /dev/null -X $METHOD --header 'User-Agent: host-tool/check' "$URL" | $FILTER | grep -q -e "$REGEX"
-		then
-			echo "http check $METHOD $URL is a correct $TYPE $TARGET"
-		else
-			alert "http check $METHOD $URL failed for $TYPE"
-		fi
-	done
+    done
 }
 
 check_rbl() {
 
-        if [ ${#IP_RBLCHECK[@]} == 0 ]
-        then
-               abort "no ssl check to perform"
-               return
+    if [ ${#IP_RBLCHECK[@]} == 0 ]
+    then
+        abort "no ssl check to perform"
+        return
+    fi
+
+    if [ ${#RBL_SERVICES[@]} == 0 ]
+    then
+        abort "no RBL services defined"
+        return
+    fi
+
+    if ! which dig >/dev/null
+    then
+        alert "dig not found (fix via: apt-get install dnsutils)"
+        return 1
+    fi
+
+    for IP in ${IP_RBLCHECK[@]}
+    do
+        local REVERSE=$(echo $IP | sed -ne "s~^\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)$~\4.\3.\2.\1~p")
+
+        if [ "x${REVERSE}" = "x" ] ; then
+            alert  "IMHO '$IP' doesn't look like a valid IP address"
+            continue
         fi
 
-	if [ ${#RBL_SERVICES[@]} == 0 ]
-        then
-               abort "no RBL services defined"
-               return
-        fi
+        for BL in ${RBL_SERVICES[@]}
+        do
+            NS=""
 
-	if ! which dig >/dev/null
-	then
-		alert "dig not found (fix via: apt-get install dnsutils)"
-		return 1
-	fi
+            # obfusq key
+            local SERVICE=$BL
+            if [[ $BL =~ \.dq\.spamhaus ]]
+            then
+                SERVICE=$(echo "$BL" | cut -d . -f 2- )
+                NS="@"$(dig +short NS $SERVICE | head -n1)
+            fi
 
+            # use dig to lookup the name in the blacklist
+            echo querying $REVERSE $SERVICE $NS
 
-	for IP in ${IP_RBLCHECK[@]}
-	do
+            LISTED="$(dig -4 +short -t A ${REVERSE}.${BL}. $NS)"
 
-		local REVERSE=$(echo $IP | sed -ne "s~^\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)$~\4.\3.\2.\1~p")
+            if [ -z "$LISTED" ]
+            then
+                echo "$IP is (rbl)-clean on $SERVICE"
+            else
+                alert "$IP is (rbl)-listed on $SERVICE: $LISTED"
+            fi
+        done
 
-		if [ "x${REVERSE}" = "x" ] ; then
-		      alert  "IMHO '$IP' doesn't look like a valid IP address"
-		      continue
-		fi
-
-		for BL in ${RBL_SERVICES[@]}
-		do
-
-		    NS=""
-
-		    # obfusq key
-		    local SERVICE=$BL
-		    if [[ $BL =~ \.dq\.spamhaus ]]
-		    then
-		    	SERVICE=$(echo "$BL" | cut -d . -f 2- )
-
-			NS="@"$(dig +short NS $SERVICE | head -n1)
-
-		    fi
-
-		    # use dig to lookup the name in the blacklist
-		    echo querying $REVERSE $SERVICE $NS
-
-		    LISTED="$(dig -4 +short -t A ${REVERSE}.${BL}. $NS)"
-
-		    if [ -z "$LISTED" ]
-		    then
-			    echo "$IP is (rbl)-clean on $SERVICE"
-		    else
-			    alert "$IP is (rbl)-listed on $SERVICE: $LISTED"
-		    fi
-		done
-
-	done
+    done
 }
 
 check_net_devices() {
-       echo checking network devices
+    echo checking network devices
 
-       if detect_virt
-       then
-               abort "this is a virtual machine, test is not relevant [ignoring test]"
-              return
-       fi
+    if detect_virt
+    then
+        abort "this is a virtual machine, test is not relevant [ignoring test]"
+        return
+    fi
 
-       if [ ! -e /sys/class/net ]
-       then
-               abort "no /sys/class/net found [ignore network check]"
-               return
-       fi
+    if [ ! -e /sys/class/net ]
+    then
+        abort "no /sys/class/net found [ignore network check]"
+        return
+    fi
 
-       local DEVICE
-       local current=$(pwd)
-       cd /sys/class/net
+    local DEVICE
+    local current=$(pwd)
+    cd /sys/class/net
 
-       for DEVICE in *
-       do
-               # keep only physical devices
-	       # FIXME: should check phydev ?
-               test -e $DEVICE/device || continue
+    for DEVICE in *
+    do
+        # keep only physical devices
+        # FIXME: should check phydev ?
+        test -e $DEVICE/device || continue
 
-	       explain "checking physical device $DEVICE"
+        explain "checking physical device $DEVICE"
 
-               local IS_UP=$(cat $DEVICE/carrier 2>/dev/null)
+        local IS_UP=$(cat $DEVICE/carrier 2>/dev/null)
 
-	       if [ "$IS_UP" != "1" ]
-	       then
-		       echo "device $DEVICE is not connected"
-		       # FIXME: check if must be connected
-		       continue
-	       fi
+        if [ "$IS_UP" != "1" ]
+        then
+            echo "device $DEVICE is not connected"
+            # FIXME: check if must be connected
+            continue
+        fi
 
-               local TX_ERROR=$(cat $DEVICE/statistics/tx_errors)
-               local RX_ERROR=$(cat $DEVICE/statistics/rx_errors)
-               local COLLISION=$(cat $DEVICE/statistics/collisions)
+        local TX_ERROR=$(cat $DEVICE/statistics/tx_errors)
+        local RX_ERROR=$(cat $DEVICE/statistics/rx_errors)
+        local COLLISION=$(cat $DEVICE/statistics/collisions)
 
-	       if [ \( $TX_ERROR -gt 0 \) -o \( $RX_ERROR -gt 0 \) -o \( $COLLISION -gt 0 \) ]
-	       then
-		       alert "device $DEVICE has communication errors ($TX_ERROR TX errors, $RX_ERROR RX errors, $COLLISION collisions)"
-	       else
-		       echo "device $DEVICE is in good health (no error, no collision)"
-	       fi
+        if [ \( $TX_ERROR -gt 0 \) -o \( $RX_ERROR -gt 0 \) -o \( $COLLISION -gt 0 \) ]
+        then
+            alert "device $DEVICE has communication errors ($TX_ERROR TX errors, $RX_ERROR RX errors, $COLLISION collisions)"
+        else
+            echo "device $DEVICE is in good health (no error, no collision)"
+        fi
 
-       done
+    done
 
-       cd $current
+    cd $current
 }
 
 # ---------------------------------------- commands
 
 cmd_check_list() {
-	# execute all check_* functions
-	for CHECK in $(compgen -A function | grep ^check_ | sort)
-	do
-		echo $CHECK
-	done
-
+    # execute all check_* functions
+    for CHECK in $(compgen -A function | grep ^check_ | sort)
+    do
+        echo $CHECK
+    done
 }
 
 cmd_full_check() {
 
-	lock || return 1
+    lock || return 1
 
-	test -e $REPORT && mv $REPORT $REPORT.prev
+    test -e $REPORT && mv $REPORT $REPORT.prev
 
-	# execute all check_* functions
-	for CHECK in $(compgen -A function | grep ^check_ | sort)
-	do
-		echo -e "$ESC_CYA== $CHECK ==$ESC_RST"
-		$CHECK
-		echo
-	done
+    # execute all check_* functions
+    for CHECK in $(compgen -A function | grep ^check_ | sort)
+    do
+        echo -e "$ESC_CYA== $CHECK ==$ESC_RST"
+        $CHECK
+        echo
+    done
 
-	if [ "$ALARM" != "0" ] 
-	then
-		MESSAGE="please check *$HOSTNAME*:"$'\n'"$(grep -v '^@silent' $REPORT | sed 's/^/  `/; s/$/`/;')"
-		notify "⚠️  $MESSAGE"
+    if [ "$ALARM" != "0" ]
+    then
+        MESSAGE="please check *$HOSTNAME*:"$'\n'"$(grep -v '^@silent' $REPORT | sed 's/^/  `/; s/$/`/;')"
+        notify "⚠️  $MESSAGE"
 
-		echo
-		echo -e "⚠️  ${ESC_RED}please check $HOSTNAME, got $(grep -v '^@silent' $REPORT | wc -l) issue(s)${ESC_RST}"
+        echo
+        echo -e "⚠️  ${ESC_RED}please check $HOSTNAME, got $(grep -v '^@silent' $REPORT | wc -l) issue(s)${ESC_RST}"
 
-	else
-		logger -p user.info -t $SCRIPTNAME -- "full check sucess"
+    else
+        logger -p user.info -t $SCRIPTNAME -- "full check sucess"
 
-		echo
-		echo -e "✅ ${ESC_GRE}full check sucess${ESC_RST}"
+        echo
+        echo -e "✅ ${ESC_GRE}full check sucess${ESC_RST}"
 
-		echo "$SCRIPTNAME full-check success at "$(date) >>$REPORT
+        echo "$SCRIPTNAME full-check success at "$(date) >>$REPORT
 
-		if [ -f $REPORT.prev ]
-		then
-			if ! ( tail -n 1 $REPORT.prev | grep -q "full-check success" )
-			then
-				# previous test was a failure, notify that everthing is back to normal
-				notify "✅ *$HOSTNAME* full-check is now successful"
-			fi
-		fi
+        if [ -f $REPORT.prev ]
+        then
+            if ! ( tail -n 1 $REPORT.prev | grep -q "full-check success" )
+            then
+                # previous test was a failure, notify that everthing is back to normal
+                notify "✅ *$HOSTNAME* full-check is now successful"
+            fi
+        fi
 
-	fi
+    fi
 
-	unlock
+    unlock
 
 }
 
 cmd_install_packages() {
 
-	lock || return 1
+    lock || return 1
 
-	if [ ${#MANDATORY_PACKAGES[@]} == 0 ]
-        then
-               abort "no mandatory package in config"
-	       unlock
-               return 1
-        fi
+    if [ ${#MANDATORY_PACKAGES[@]} == 0 ]
+    then
+       abort "no mandatory package in config"
+       unlock
+       return 1
+    fi
 
-        if ! which apt-get >/dev/null
-        then
-               echo "apt-get not found, I only know debian systems [ignoring command]"
-	       unlock
-               return 1
-        fi
+    if ! which apt-get >/dev/null
+    then
+       echo "apt-get not found, I only know debian systems [ignoring command]"
+       unlock
+       return 1
+    fi
 
-	apt-get install "${MANDATORY_PACKAGES[@]}"
+    apt-get install "${MANDATORY_PACKAGES[@]}"
 
-	unlock
+    unlock
 }
 
 cmd_notify_alive() {
-	notify "⏰ *${HOSTNAME}* is alive"
+    notify "⏰ *${HOSTNAME}* is alive"
 }
 
 cmd_notify_boot() {
-	notify "💫 *${HOSTNAME}* just boot, please check it"
+    notify "💫 *${HOSTNAME}* just boot, please check it"
 }
 
 cmd_notify() {
-	notify "*${HOSTNAME}*: $*"
+    notify "*${HOSTNAME}*: $*"
 }
 
 cmd_last_report() {
 
-	# FIXME: 'd rather use a temp file while building new report
+    # FIXME: 'd rather use a temp file while building new report
 
-	echo
-	if [ -e $REPORT ]
-	then
-		cat $REPORT
-	else
-		echo "please run '$SCRIPTNAME full-check' to have report"
-	fi
-	echo
+    echo
+    if [ -e $REPORT ]
+    then
+        cat $REPORT
+    else
+        echo "please run '$SCRIPTNAME full-check' to have report"
+    fi
+    echo
 }
 
 cmd_backup_etc() {
 
-	if ! which dpkg >/dev/null
-	then
-		alert "only know debian for now"
-		return 1
-	fi
+    if ! which dpkg >/dev/null
+    then
+        alert "only know debian for now"
+        return 1
+    fi
 
-	# get path from config
-	local DEST=$BACKUP_PATH
+    # get path from config
+    local DEST=$BACKUP_PATH
 
-	# overwrite path from parameter
-	[ ! -z "$1" ] && DEST=$1
+    # overwrite path from parameter
+    [ ! -z "$1" ] && DEST=$1
 
-	if [ -z "$DEST" ] 
-	then
-		echo please specify a destination
-		return 1
-	fi
+    if [ -z "$DEST" ]
+    then
+        echo please specify a destination
+        return 1
+    fi
 
-	echo backup config and package list only of $HOSTNAME to $DEST
+    echo backup config and package list only of $HOSTNAME to $DEST
 
-	local current=$(pwd)
-	cd /
+    local current=$(pwd)
+    cd /
 
-	if ! touch $DEST/.start-backup
-	then
-		echo cannot write in $DEST
-		return 1
-	fi
-	rm -f $DEST/.start-backup
+    if ! touch $DEST/.start-backup
+    then
+        echo cannot write in $DEST
+        return 1
+    fi
+    rm -f $DEST/.start-backup
 
-	# backup /etc
-	tar -cf $DEST/etc.tgz etc
+    # backup /etc
+    tar -cf $DEST/etc.tgz etc
 
-	# get packages selections
-	# XXX: dpkg or "apt list --installed ?"
-	dpkg --get-selections >$DEST/dpkg.list
+    # get packages selections
+    # XXX: dpkg or "apt list --installed ?"
+    dpkg --get-selections >$DEST/dpkg.list
 
-	cd $current
+    cd $current
 }
 
 cmd_help() {
-	cat <<EOF
+    cat <<EOF
 usage $SCRIPTNAME [options] <command>
 
 options:
-	-c|--config <file>	specify config file (default: $CONFIG)
-	-r|--report <file>	specify report file (default: $REPORT)
-	-s|--silent		mute notifications
+    -c|--config <file>    specify config file (default: $CONFIG)
+    -r|--report <file>    specify report file (default: $REPORT)
+    -s|--silent           mute notifications
 
 command:
 
-	check-list		list check available
-	<check...>		call directly a check (list available on check-list)
-	full-check		perform a full host check (use it in cron for periodic check)
-	last-report		dump last report from full-check command (ex: use in in /etc/update-motd.d)
+    check-list            list check available
+    <check...>            call directly a check (list available on check-list)
+    full-check            perform a full host check (use it in cron for periodic check)
+    last-report           dump last report from full-check command (ex: use in in /etc/update-motd.d)
 
-	install-packages	install mandatory packages
-	backup-etc [<path>]	backup /etc and package list to <path> destination
+    install-packages      install mandatory packages
+    backup-etc [<path>]   backup /etc and package list to <path> destination
 
-	notify-alive		notify host is alive (ex: use it in cron for periodic notification)
-	notify-boot		notify host just boot (ex: put it in /etc/rc.local)
-	notify <message>	send a custom notification
+    notify-alive          notify host is alive (ex: use it in cron for periodic notification)
+    notify-boot           notify host just boot (ex: put it in /etc/rc.local)
+    notify <message>      send a custom notification
 
-	help 			this help
+    help                  this help
 
 EOF
 }
@@ -1961,10 +1968,10 @@ EOF
 
 # ------------------------------------------------------ main
 
-if [ "$UID" != "0" ] 
-then 
-	echo "must be runned has root"
-	exit 1
+if [ "$UID" != "0" ]
+then
+    echo "must be runned has root"
+    exit 1
 fi
 
 NO_COMMAND=1
@@ -1972,72 +1979,71 @@ NO_COMMAND=1
 # read parameters
 while [ $# -gt 0 ]
 do
-	case $1 in
-		-c|--config)
-			shift
-			CONFIG=$1
-			echo CONFIG=$CONFIG;
-			shift
-			;;
+    case $1 in
+        -c|--config)
+            shift
+            CONFIG=$1
+            echo CONFIG=$CONFIG;
+            shift
+            ;;
 
-		-r|--report)
-			shift
-			REPORT=$1
-			echo REPORT=$CONFIG;
-			shift
-			;;
+        -r|--report)
+            shift
+            REPORT=$1
+            echo REPORT=$CONFIG;
+            shift
+            ;;
 
-		-s|--silent)
-			shift
-			NOTIFY=0
-			;;
+        -s|--silent)
+            shift
+            NOTIFY=0
+            ;;
 
-		*)
-			NO_COMMAND=0
+        *)
+            NO_COMMAND=0
 
-			# no more parameter
-			[ $CONFIG_LOADED -eq 0 ] && load_config
+            # no more parameter
+            [ $CONFIG_LOADED -eq 0 ] && load_config
 
-			if [[ $1 =~ ^check_ ]]
-			then
-				# check if $1 is a command (prepend cmd_ and replace - by _)
-				COMMAND=$1
-			else
+            if [[ $1 =~ ^check_ ]]
+            then
+                # check if $1 is a command (prepend cmd_ and replace - by _)
+                COMMAND=$1
+            else
+                # check if $1 is a command (prepend cmd_ and replace - by _)
+                COMMAND=cmd_${1//[-]/_}
+            fi
 
-				# check if $1 is a command (prepend cmd_ and replace - by _)
-				COMMAND=cmd_${1//[-]/_}
-			fi
+            if ( declare -F "$COMMAND" >/dev/null)
+            then
+                # command exists, execute it giving next parameters
+                COMMAND_FOUND=1
+                shift
+                $COMMAND "$@"
+            else
+                echo "command $1 not recognized"
+            fi
 
-			if ( declare -F "$COMMAND" >/dev/null)
-			then
-				# command exists, execute it giving next parameters
-				COMMAND_FOUND=1
-				shift
-				$COMMAND "$@"
-			else
-				echo "command $1 not recognized"
-			fi
-
-			# end loop
-			break
-	esac
+            # end loop
+            break
+    esac
 done
 
 if [ $NO_COMMAND -eq 1 ]
 then
-	# shortcut to full-check
-	[ $CONFIG_LOADED -eq 0 ] && load_config
-	load_config
-	cmd_full_check
-	exit $ALARM
+    # shortcut to full-check
+    [ $CONFIG_LOADED -eq 0 ] && load_config
+    load_config
+    cmd_full_check
+    exit $ALARM
 fi
 
 
 if [ $COMMAND_FOUND -eq 0 ]
 then
-	echo "bad syntax"
-	cmd_help
-	exit 1
+    echo "bad syntax"
+    cmd_help
+    exit 1
 fi
 
 exit $ALARM
