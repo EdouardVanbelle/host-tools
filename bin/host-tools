@@ -1612,15 +1612,57 @@ check_ssl() {
     #openssl s_client -servername ... -starttls imap -crlf -connect mail....:143
     #openssl s_client -servername ... -starttls smtp -crlf -connect mail....:25
 
-    for CONNECTION in ${SSL_CONNECTIONS[@]}
+    for CONNECTION in "${SSL_CONNECTIONS[@]}"
     do
-        local FQDN="${CONNECTION%:*}"
-        local PORT="${CONNECTION#*:}"
-        test -z "$PORT" && PORT=443
+        local PROTO=$(echo "$CONNECTION" | sed -s 's!://.*!!')
+        test "$PROTO" = "$CONNECTION" && PROTO=https
+        local DOMAIN=$(echo "$CONNECTION" | sed -s 's!\([a-z]\+\)://!!')
 
-        explain "checking $FQDN port $PORT"
+        local FQDN=$(echo "$DOMAIN" | cut -d : -f 1)
+        local PORT=$(echo "$DOMAIN" | cut -d : -f 2)
+        test "$FQDN" = "$PORT" && PORT=""
 
-        local SSL=$(openssl s_client -servername $FQDN -host $FQDN -port $PORT </dev/null 2>/dev/null | openssl x509 -noout -noout -checkend $((3600*24*$SSL_PREVENTION_EXPIRATION)) -ext subjectAltName | tail -n +2)
+        local CMD=""
+
+        case $PROTO in
+            https)
+                PORT=${PORT:-443}
+                OPENSSL="openssl s_client -connect $FQDN:$PORT -servername $FQDN"
+                ;;
+            imap)
+                PORT=${PORT:-143}
+                CMD="QUIT"
+                OPENSSL="openssl s_client -starttls imap -crlf -connect $FQDN:$PORT -servername $FQDN"
+                ;;
+            imaps)
+                PORT=${PORT:-993}
+                OPENSSL="openssl s_client -connect $FQDN:$PORT -servername $FQDN"
+                ;;
+            smtp)
+                PORT=${PORT:-25}
+                CMD="QUIT"
+                OPENSSL="openssl s_client -starttls smtp -crlf -connect $FQDN:$PORT -servername $FQDN"
+                ;;
+            smtps|submission)
+                PORT=${PORT:-465}
+                OPENSSL="openssl s_client -connect $FQDN:$PORT -servername $FQDN"
+                ;;
+            *)
+                # FIXME
+                echo $PROTO not recognized
+                exit 255
+                ;;
+        esac
+
+        explain "checking TLS on $PROTO for $FQDN port $PORT"
+
+        local SSL
+        if [ -z "$CMD" ]
+        then
+            SSL=$($OPENSSL  </dev/null 2>/dev/null | openssl x509 -noout -noout -checkend $((3600*24*$SSL_PREVENTION_EXPIRATION)) -ext subjectAltName | tail -n +2)
+        else
+            SSL=$(echo $CMD | $OPENSSL 2>/dev/null | openssl x509 -noout -noout -checkend $((3600*24*$SSL_PREVENTION_EXPIRATION)) -ext subjectAltName | tail -n +2)
+        fi
 
         if !( echo $SSL | grep -q "DNS:$FQDN" )
         then
@@ -1629,7 +1671,7 @@ check_ssl() {
 
         if ( echo $SSL | grep -q "Certificate will expire" )
         then
-            local EXPIRATION=$(openssl s_client -servername $FQDN -host $FQDN -port $PORT </dev/null 2>/dev/null | openssl x509 -noout -enddate | cut -d '=' -f 2 | sed 's/ ..:..:../,/; s/ GMT$//;')
+            local EXPIRATION=$($OPENSSL </dev/null 2>/dev/null | openssl x509 -noout -enddate | cut -d '=' -f 2 | sed 's/ ..:..:../,/; s/ GMT$//;')
             alert "please renew certificate $FQDN that will expire the $EXPIRATION (less than $SSL_PREVENTION_EXPIRATION days)"
         fi
 

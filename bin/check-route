@@ -1,18 +1,18 @@
 #!/bin/sh 
 
-# status: work in progress
+# status: work with OpenWRT (not need ubus & uci)
 # use for switch correct route (example: when default internet is down, use backup system)
 
 MODE="$1"
-
-echo mode "$MODE"
 
 ROUTE_DEFINED=""
 
 CURRENT_ROUTE=$(ip route show default | grep -v metric | sed 's/[[:blank:]]*$//')
 
+#uci get network.wan14.label
+
 source /etc/host-tools.conf
-#WEBHOOK=....
+# WEBHOOK=....
 
 urlencode() {
     # urlencode <string>
@@ -46,93 +46,123 @@ notify() {
 
 }
 
-for IFACE in eth0.3 eth0.4 
-do
+main() {
+	for UBUS in $(ubus list network.interface.* | grep "\.wan")
+	do
+
+		IFACE=$(ubus call $UBUS status | jq -r .device)
+		DNS=$(ubus call $UBUS status | jq -r '."dns-server"[0]')
+		GATEWAY=$(ubus call $UBUS status | jq -r '.route[0].nexthop')
+		TABLE=$(ubus call $UBUS status | jq -r .ip4table)
+		ADDR=$(ubus call $UBUS status | jq -r '."ipv4-address"[0].address')
+		LABEL="$(uci get $(echo $UBUS | sed 's/\.interface//').label 2>/dev/null)"
+
+		if [ -z "$LABEL" ]
+		then
+			LABEL="$(echo $UBUS | sed 's/network.interface.//')"
+		fi
+
+		#
+		echo
+		echo "------- checking $LABEL (IFACE=$IFACE IP=$ADDR GATEWAY=$GATEWAY DNS=$DNS TABLE=$TABLE)"
+
+		#ADDR=$(ip -f inet addr show $IFACE 2>/dev/null | awk '/inet / {print $2}' | cut -d / -f 1 )
+
+		if [ -z "$ADDR" ]
+		then
+			echo "$LABEL has no IP defined"
+			continue
+		fi
+
+		#echo "checking $IFACE via $ADDR"
+
+		#TABLE=$(ip rule show | grep $ADDR | head -n 1 | sed 's/.*lookup //')
+		#echo "table $TABLE"
+
+		ROUTE=$(ip route show default table $TABLE | sed 's/ proto.*//')
+
+		if [ -z "$ROUTE" ]
+		then
+			echo "ERR: unable to get default route for $IFACE (table $TABLE)"
+			continue
+		fi
+
+		#GATEWAY=$(echo "$ROUTE" | awk '{print $3}')
+		#echo "gateway: $GATEWAY"
+
+		# ensure DNS are via GATEWAY 
+		test -z "$(ip route show $DNS)" && ip route add $DNS/32 via $GATEWAY
+
+		TARGET=$(dig +short A ifconfig.me "@"$DNS 2>/dev/null)
+
+		if [ $? -ne 0 ]
+		then
+			echo "ERR: $LABEL ($IFACE) broken (unable to get ifconfig.me IP's)"
+			[ "$MODE" = "full" ] && notify "OTB Lille: $LABEL has no internet connection"
+			continue
+		fi
+
+		# pick up only 1 IP
+		TARGET=$(echo $TARGET | sed 's/ .*//')
+
+		#echo "ifconfig.me's IP is $TARGET"
+
+		IPOUT=$(curl --connect-timeout 3 --interface $IFACE --header 'Host: ifconfig.me' $TARGET 2>/dev/null)
+
+		if [ $? -ne 0 ]
+		then
+			echo "$LABEL is broken (unable to query http://ifconfig.me)"
+			[ "$MODE" = "full" ] && notify "OTB Lille: $LABEL has no internet connection"
+		fi
+
+		echo "$LABEL has internet connection (outgoing IP is $IPOUT)"
+
+		if [ ! -z "$ROUTE_DEFINED" ] 
+		then
+			# default route already defined
+			continue
+		fi
+
+		if [ "$ROUTE" != "$CURRENT_ROUTE" ]
+		then
+			echo "route changed: defining default route to: $ROUTE"
+			ip route del default 2>/dev/null
+			ip route add $ROUTE
+
+			case "$MODE" in
+				boot)
+					notify "OTB Lille: recent boot, setup route to $LABEL"
+					;;
+				*)
+					notify "OTB Lille: change route to $LABEL"
+					;;
+			esac
+					
+		else
+			echo "route remains the same (no change)"
+		fi
+
+		ROUTE_DEFINED="$ROUTE"
+
+	done
+
+	if [ -z "$ROUTE_DEFINED" ] 
+	then
+		echo "oops no default route defined"
+	fi
 
 	echo
-	echo "------- checking $IFACE"
+	echo end
+}
 
-	ADDR=$(ip -f inet addr show $IFACE 2>/dev/null | awk '/inet / {print $2}' | cut -d / -f 1 )
+# ---- main
+(
+         if ( ! flock -n 9 )
+	 then
+		 echo other instance running
+		 exit 0
+	 fi
 
-	if [ -z "$ADDR" ]
-	then
-		echo "$IFACE is not defined"
-		continue
-	fi
+	 main
 
-	echo "checking $IFACE via $ADDR"
-
-	TABLE=$(ip rule show | grep $ADDR | head -n 1 | sed 's/.*lookup //')
-
-	echo "table $TABLE"
-
-	ROUTE=$(ip route show default table $TABLE | sed 's/ proto.*//')
-
-	if [ -z "$ROUTE" ]
-	then
-		echo "ERR: unable to get default route for $IFACE"
-		continue
-	fi
-
-	GATEWAY=$(echo "$ROUTE" | awk '{print $3}')
-	echo "gateway: $GATEWAY"
-
-	TARGET=$(dig +short A ifconfig.me "@"$GATEWAY 2>/dev/null)
-
-	if [ $? -ne 0 ]
-	then
-		echo "ERR: $IFACE broken (unable to get ifconfig.me IP's)"
-		[ "$MODE" = "full" ] && notify "OTB Lille: $IFACE has no internet connection"
-		continue
-	fi
-
-	# pick up only 1 IP
-	TARGET=$(echo $TARGET | sed 's/ .*//')
-
-	echo "ifconfig.me's IP is $TARGET"
-
-	IPOUT=$(curl --connect-timeout 3 --interface $IFACE --header 'Host: ifconfig.me' $TARGET 2>/dev/null)
-
-	if [ $? -ne 0 ]
-	then
-		echo "$IFACE is broken (unable to query http://ifconfig.me)"
-		[ "$MODE" = "full" ] && notify "OTB Lille: $IFACE has no internet connection"
-	fi
-
-	echo "$IFACE has internet connection (outgoing IP is $IPOUT)"
-
-	if [ ! -z "$ROUTE_DEFINED" ] 
-	then
-		# default route already defined
-		continue
-	fi
-
-	if [ "$ROUTE" != "$CURRENT_ROUTE" ]
-	then
-		echo "route changed: defining default route to: $ROUTE"
-		ip route del default 2>/dev/null
-		ip route add $ROUTE
-
-		case "$MODE" in
-			boot)
-				notify "OTB Lille: recent boot, setup route to $IFACE"
-				;;
-			*)
-				notify "OTB Lille: change route to $IFACE"
-				;;
-		esac
-				
-	else
-		echo "route remains the same (no change)"
-	fi
-
-	ROUTE_DEFINED="$ROUTE"
-
-done
-
-if [ -z "$ROUTE_DEFINED" ] 
-then
-	echo "oops no default route defined"
-fi
-
-
+) 9>/var/run/check-route.lock

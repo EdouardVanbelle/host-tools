@@ -35,3 +35,7 @@ apt list --upgradable
 	check hardware vuln not satisfied:
 
 	dmesg | grep -i Vulnerable
+
+
+# check ipv6
+curl -6 https://ifconfig.me
