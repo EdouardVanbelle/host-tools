@@ -1889,7 +1889,7 @@ cmd_full_check() {
         echo
         echo -e "✅ ${ESC_GRE}full check sucess${ESC_RST}"
 
-        echo "$SCRIPTNAME full-check success at "$(date) >>$REPORT
+        echo "full-check success at "$(date) >>$REPORT
 
         if [ -f $REPORT.prev ]
         then
@@ -1959,13 +1959,23 @@ cmd_last_report() {
     #    return
     #fi
 
+    TAB="    "
+
+    REPORT_DATE="$(stat -c '%y' $REPORT)"
+    echo "$SCRIPTNAME report at $REPORT_DATE:"
     while read -r LINE
     do
+        if [[ $LINE =~ ^full-check\ success ]]
+        then
+            echo -e "$TAB✅ ${ESC_GRE}full check sucess${ESC_RST}"
+            continue
+        fi
+
         if [[ $LINE =~ ^@silent ]]
         then
-            echo -e "🔕 ${ESC_YEL}${LINE#@silent }${ESC_RST}"
+            echo -e "$TAB🔕 ${ESC_YEL}${LINE#@silent }${ESC_RST}"
         else
-            echo -e "❗ ${ESC_RED}${LINE}${ESC_RST}"
+            echo -e "$TAB❗ ${ESC_RED}${LINE}${ESC_RST}"
         fi
     done < $REPORT
     echo
