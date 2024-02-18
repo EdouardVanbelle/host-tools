@@ -1946,12 +1946,28 @@ cmd_last_report() {
     # FIXME: 'd rather use a temp file while building new report
 
     echo
-    if [ -e $REPORT ]
+    if [ ! -e $REPORT ]
     then
-        cat $REPORT
-    else
         echo "please run '$SCRIPTNAME full-check' to have report"
+        return
     fi
+
+    #if ! tty >/dev/null 2>/dev/null
+    #then
+    #    cat $REPORT
+    #    echo
+    #    return
+    #fi
+
+    while read -r LINE
+    do
+        if [[ $LINE =~ ^@silent ]]
+        then
+            echo -e "🔕 ${ESC_YEL}${LINE#@silent }${ESC_RST}"
+        else
+            echo -e "❗ ${ESC_RED}${LINE}${ESC_RST}"
+        fi
+    done < $REPORT
     echo
 }
 
