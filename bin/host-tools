@@ -1517,7 +1517,8 @@ check_file_exists() {
 check_need_reboot() {
     if [ \( -f "/var/run/reboot-required" \) -o \( -f "/var/run/reboot-required.pkgs" \) ]
     then
-        alert "system need a reboot"
+        local REASON="$(head -n 1 /var/run/reboot-required.pkgs 2>/dev/null)"
+        alert "system need a reboot: $REASON"
     fi
 }
 
