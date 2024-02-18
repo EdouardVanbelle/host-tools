@@ -77,6 +77,7 @@ ESC_MAG="\e[95m"
 ESC_CYA="\e[96m"
 ESC_WHI="\e[97m"
 ESC_RST="\e[0m"
+ESC_BOLD="\e[1m"
 
 IS_VM=""
 
@@ -1963,7 +1964,7 @@ cmd_last_report() {
     TAB="    "
 
     REPORT_DATE="$(stat -c '%y' $REPORT)"
-    echo "$SCRIPTNAME report at $REPORT_DATE:"
+    echo -e "${ESC_BOLD}$SCRIPTNAME${ESC_RST} report at $REPORT_DATE:"
     while read -r LINE
     do
         if [[ $LINE =~ ^full-check\ success ]]
@@ -1976,7 +1977,7 @@ cmd_last_report() {
         then
             echo -e "$TAB🔕 ${ESC_YEL}${LINE#@silent }${ESC_RST}"
         else
-            echo -e "$TAB❗ ${ESC_RED}${LINE}${ESC_RST}"
+            echo -e "$TAB❗ ${ESC_RED}${ESC_BOLD}${LINE}${ESC_RST}"
         fi
     done < $REPORT
     echo
