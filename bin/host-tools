@@ -1884,10 +1884,10 @@ cmd_full_check() {
         echo -e "⚠️  ${ESC_RED}please check $HOSTNAME, got $(grep -v '^@silent' $REPORT | wc -l) issue(s)${ESC_RST}"
 
     else
-        logger -p user.info -t $SCRIPTNAME -- "full check sucess"
+        logger -p user.info -t $SCRIPTNAME -- "full check success"
 
         echo
-        echo -e "✅ ${ESC_GRE}full check sucess${ESC_RST}"
+        echo -e "✅ ${ESC_GRE}full check success${ESC_RST}"
 
         echo "full-check success at "$(date) >>$REPORT
 
@@ -1967,7 +1967,7 @@ cmd_last_report() {
     do
         if [[ $LINE =~ ^full-check\ success ]]
         then
-            echo -e "$TAB✅ ${ESC_GRE}full check sucess${ESC_RST}"
+            echo -e "$TAB✅ ${ESC_GRE}full check success${ESC_RST}"
             continue
         fi
 
