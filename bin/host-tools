@@ -53,8 +53,12 @@ CONFIG="/etc/host-tools.conf"
 LIBDIR="/var/lib/host-tools"
 test -d $LIBDIR || mkdir $LIBDIR || echo "warning: unable to create $LIBDIR"
 
+# lookup for RUNDIR
+RUNDIR="/run" # Recent distrib
+test -e $RUNDIR || RUNDIR="/var/run" # Old distribs
+
 REPORT="$LIBDIR/host-tools.report"
-LOCK="/var/run/host-tools.lock"
+LOCK="$RUNDIR/host-tools.lock"
 HOSTNAME=$(hostname)
 SCRIPTNAME=$(basename $0)
 
@@ -1516,10 +1520,10 @@ check_file_exists() {
 }
 
 check_need_reboot() {
-    if [ \( -f "/var/run/reboot-required" \) -o \( -f "/var/run/reboot-required.pkgs" \) ]
+    if [ \( -f "$RUNDIR/reboot-required" \) -o \( -f "$RUNDIR/reboot-required.pkgs" \) ]
     then
-        local REASON="$(head -n 1 /var/run/reboot-required.pkgs 2>/dev/null)"
-        alert "system need a reboot: $REASON"
+        local REASON="$(tail -n 1 /var/run/reboot-required.pkgs 2>/dev/null)"
+        alert "system needs a reboot: $REASON"
     fi
 }
 
