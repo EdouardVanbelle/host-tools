@@ -359,7 +359,27 @@ find_disks() {
 
 check_root_sshkeys() {
 
-    local AUTHORIZED_KEY="/root/.ssh/authorized_keys2"
+    if [ ${#ROOT_KEYS[@]} == 0 ]
+    then
+        echo no ssh key to test
+        return 0
+    fi
+
+    ROOT_HOME=$(getent passwd root  | cut -d ':' -f 6)
+
+    local AUTHORIZED_KEY=()
+
+    # XXX works only with openssh, should take in consideration dropbear
+    for F in "$ROOT_HOME/.ssh/authorized_keys" "$ROOT_HOME/.ssh/authorized_keys2"
+    do
+        [ -e "$F" ] && AUTHORIZED_KEY+=($F)
+    done
+
+    if [ ${#AUTHORIZED_KEY[@]} == 0 ]
+    then
+        alert "$ROOT_HOME/.ssh/authorized_keys is missing"
+        return 1
+    fi
 
     local PREV_IFS=$IFS
     IFS=""
@@ -367,7 +387,7 @@ check_root_sshkeys() {
     do
         local SHORTKEY=$(echo "$KEY" | awk '{ print $1 " ... " $NF }')
         echo "ensure that $SHORTKEY is present for root"
-        if ! ( grep -q ^$KEY $AUTHORIZED_KEY )
+        if ! ( cat "${AUTHORIZED_KEY[@]}" 2>/dev/null | grep -q ^$KEY )
         then
             alert "$SHORTKEY is missing in $AUTHORIZED_KEY"
         fi
