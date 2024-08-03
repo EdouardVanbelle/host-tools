@@ -35,6 +35,11 @@ MANDATORY_FILES=("/home/mail-data")
 # domain name to use to grab farm list (otherwise use HOSTS=() array )
 DOMAIN="mydomain.tld"
 
+# list of hosts to test ping, use format `hostname|arp` if you need a local ARP test
+# ex: here it will: arping alarm
+HOSTS=("tv" "alarm|arp")
+
+
 # raid disk to mute notification in case of error (* = matchall)
 SILENT_RAID=()
 
