@@ -1586,13 +1586,59 @@ check_farm() {
         return 0
     fi
 
+    ARPING=()
+    PING=()
+
+    # dispatch ping and arping
+    for SERVER in "${HOSTS[@]}"
+    do
+        if [[ "$SERVER" =~ '|arp' ]]
+        then
+           ARPING+=(${SERVER%|*})
+        else
+           PING+=($SERVER)
+        fi
+    done
+
+
+    if [ ${#ARPING[@]} -gt 0 ]
+    then
+
+        if ! which arping > /dev/null
+        then
+            echo "Please install arping, via 'apt install arping'" &>2
+        else
+            # check ARP
+            for SERVER in "${ARPING[@]}"
+            do
+                explain "checking server $SERVER (via ARP)"
+
+                if arping -q -c 3 $SERVER >/dev/null
+                then
+                    echo "ping (via ARP): $SERVER is alive"
+                else
+                    local do_alert="alert"
+                    contains "$SERVER" "${SILENT_HOSTDOWN[@]}" && do_alert="silent_alert"
+                    $do_alert "no arping answer from $SERVER"
+                fi
+            done
+        fi
+    fi
+
+    if [ ${#PING[@]} -eq 0 ]
+    then
+        abort "no host to check"
+        return 0
+    fi
+
+
     if ! which fping >/dev/null
     then
         # fallback
 
         abort "fping not found, fall back to ping. I recommand you to 'apt install fping'"
 
-        for SERVER in "${HOSTS[@]}"
+        for SERVER in "${PING[@]}"
         do
             explain "checking server $SERVER (ping)"
 
@@ -1616,7 +1662,7 @@ check_farm() {
         return 0
     fi
 
-    fping -c 3 -q -B 1.5 "${HOSTS[@]}" 2>/tmp/host-tools.ping
+    fping -c 3 -q -B 1.5 "${PING[@]}" 2>/tmp/host-tools.ping
 
     cat /tmp/host-tools.ping
 
