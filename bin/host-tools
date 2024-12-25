@@ -357,6 +357,17 @@ find_disks() {
 
 # ---------------------------------------- checks
 
+
+##
+#
+# check keys are crypted
+# for F in $(grep -l "BEGIN OPENSSH PRIVATE KEY" *); do echo -n "$F: "; grep -v -- '^----' $F | base64 -d | head -c 40 | tr -c '[:print:]' ' '; echo; done
+#
+# if crypted:
+# /root/.ssh/id_rsa_tun: openssh-key-v1     aes256-ctr    bcrypt
+# if clear:
+# /root/.ssh/id_rsa_tun: openssh-key-v1     none    none
+
 check_root_sshkeys() {
 
     if [ ${#ROOT_KEYS[@]} == 0 ]
@@ -1699,7 +1710,7 @@ check_ssl() {
     for CONNECTION in "${SSL_CONNECTIONS[@]}"
     do
         local PROTO=$(echo "$CONNECTION" | sed -s 's!://.*!!')
-        test "$PROTO" = "$CONNECTION" && PROTO=https
+        test "$PROTO" = "$CONNECTION" && PROTO=tls
         local DOMAIN=$(echo "$CONNECTION" | sed -s 's!\([a-z]\+\)://!!')
 
         local FQDN=$(echo "$DOMAIN" | cut -d : -f 1)
@@ -1709,7 +1720,7 @@ check_ssl() {
         local CMD=""
 
         case $PROTO in
-            https)
+            https|tls)
                 PORT=${PORT:-443}
                 OPENSSL="openssl s_client -connect $FQDN:$PORT -servername $FQDN"
                 ;;
@@ -1750,13 +1761,13 @@ check_ssl() {
 
         if !( echo $SSL | grep -q "DNS:$FQDN" )
         then
-            alert "certificate $FQDN mismatch fqdn"
+            alert "certificate $FQDN mismatch fqdn (proto: $PROTO, port: $PORT)"
         fi
 
         if ( echo $SSL | grep -q "Certificate will expire" )
         then
             local EXPIRATION=$($OPENSSL </dev/null 2>/dev/null | openssl x509 -noout -enddate | cut -d '=' -f 2 | sed 's/ ..:..:../,/; s/ GMT$//;')
-            alert "please renew certificate $FQDN that will expire the $EXPIRATION (less than $SSL_PREVENTION_EXPIRATION days)"
+            alert "please renew certificate $FQDN that will expire the $EXPIRATION (less than $SSL_PREVENTION_EXPIRATION days, proto: $PROTO, port: $PORT)"
         fi
 
     done
