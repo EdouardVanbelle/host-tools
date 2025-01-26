@@ -157,6 +157,50 @@ min_to_human_display() {
    echo $answer
 }
 
+byte_to_human_display() {
+    local byte=$1
+    local unit=$2
+
+    local rest=0
+
+    while [ $byte -gt 1014 ]
+    do
+        rest=$(( $byte % 1024 ))
+        byte=$(( $byte / 1014 ))
+
+        case $unit in
+            B)
+                unit="kB"
+                ;;
+            kB)
+                unit="MB"
+                ;;
+            MB)
+                unit="GB"
+                ;;
+            GB)
+                unit="TB"
+                ;;
+            TB)
+                unit="PB"
+                break
+                ;;
+            *)
+                echo "byte_to_human_display: unit $unit not recognized" >&2
+                ;;
+        esac
+
+    done
+
+    #rest=$(( $prev - $byte * 1014))
+
+    if [ $rest -eq 0 ]
+    then
+        echo $byte $unit
+    else
+        printf "%d.%03d %s" $byte $rest $unit
+    fi
+}
 
 # return cached value or default one.
 _cache() {
@@ -312,11 +356,11 @@ load_config() {
 
     if [ "$(stat -c '%u %g' -L $CONFIG)" != "0 0" ]
     then
-        echo "SECURITY: $CONFIG must be owner by uid: root group: root" 
+        echo "SECURITY: $CONFIG must be owner by uid: root group: root"
         exit 1
     fi
 
-    #expected return: -rw-r--r-- 
+    #expected return: -rw-r--r--
     if echo "$(stat -c '%A' -L $CONFIG)" | grep -q '^........w.$'
     then
         echo "SECURITY: $CONFIG cannot be writable by anybody"
@@ -792,11 +836,11 @@ check_mem_remaining() {
 
     local RATIO=$(( $MEM_FREE*100/$MEM_TOTAL ))
 
-    echo "Total memory: $MEM_TOTAL $MEM_UNIT, remaining memory: $MEM_FREE $MEM_UNIT ( $RATIO % )"
+    echo "Total memory: $(byte_to_human_display $MEM_TOTAL $MEM_UNIT), remaining memory: $(byte_to_human_display $MEM_FREE $MEM_UNIT) ( $RATIO % )"
 
     if [ $RATIO -lt $MIN_REMAINING_MEMORY ]
     then
-        alert "Host has reached it's minimal memory remaining $MEM_FREE $MEM_UNIT ( $RATIO % free, less than $MIN_REMAINING_MEMORY % )"
+        alert "Host has reached it's minimal memory remaining $(byte_to_human_display $MEM_FREE $MEM_UNIT) ( $RATIO % free, less than $MIN_REMAINING_MEMORY % )"
     fi
 }
 
