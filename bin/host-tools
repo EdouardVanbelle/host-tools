@@ -57,6 +57,9 @@ test -d $LIBDIR || mkdir $LIBDIR || echo "warning: unable to create $LIBDIR"
 RUNDIR="/run" # Recent distrib
 test -e $RUNDIR || RUNDIR="/var/run" # Old distribs
 
+HT_RUNDIR="$RUNDIR/host-tools"
+test -d $HT_RUNDIR || mkdir $HT_RUNDIR
+
 REPORT="$LIBDIR/host-tools.report"
 LOCK="$RUNDIR/host-tools.lock"
 HOSTNAME=$(hostname)
@@ -151,6 +154,56 @@ min_to_human_display() {
 
    echo $answer
 }
+
+
+# return cached value or default one.
+_cache() {
+    local CACHE="$1"
+    local TTL="$2"
+    local DEFAULT=$3
+    local CURRENT=$4
+
+    local VALUE=$DEFAULT
+    local WRITE=1
+
+    if [ -e "$CACHE" ]
+    then
+        local NOW=$(date +'%s')
+        local CTIME=$(stat -c '%Y' "$CACHE")
+
+        if [ $(( $NOW - $CTIME )) -lt $(( 3600 * $TTL )) ]
+        then
+            VALUE=$(cat "$CACHE")
+            # cache ok, do not alter it
+            WRITE=0
+        else
+            # cache expired, but got a value
+            VALUE=$(cat "$CACHE")
+            if [ $VALUE -eq $CURRENT ]
+            then
+                # value remains the same, no need to alter it
+                WRITE=0
+            fi
+        fi
+    fi
+
+    if [ $WRITE -eq 1 ]
+    then
+        # Write cache
+        echo $CURRENT > "$CACHE"
+    fi
+
+    echo $VALUE
+}
+
+volatile_cache() {
+    _cache "$HT_RUNDIR/$1" "$2" "$3" "$4"
+}
+
+persistent_cache() {
+    _cache "$LIBDIR/$1" "$2" "$3" "$4"
+}
+
 
 contains() {
     # usage contains "lookup" "array"
@@ -729,6 +782,9 @@ check_sensors() {
 check_oomkilled() {
 
     explain "check oomkilled process since 1 day"
+
+    # to get number of oom kill since boot time:
+    # awk '{if($1 == "oom_kill") {print $2}}' < /proc/vmstat
 
     if which journalctl >/dev/null
     then
@@ -1934,11 +1990,20 @@ check_net_devices() {
         local RX_ERROR=$(cat $DEVICE/statistics/rx_errors)
         local COLLISION=$(cat $DEVICE/statistics/collisions)
 
-        if [ \( $TX_ERROR -gt 0 \) -o \( $RX_ERROR -gt 0 \) -o \( $COLLISION -gt 0 \) ]
+       # volatile_cache KEY TTL_IN_H DEFAULT_VALUE CURRENT_VALUE
+       local PREV_TX_ERROR=$(volatile_cache "net:${DEVICE}:tx_error" 24 0 $TX_ERROR)
+       local PREV_RX_ERROR=$(volatile_cache "net:${DEVICE}:rx_error" 24 0 $RX_ERROR)
+       local PREV_COLLISION=$(volatile_cache "net:${DEVICE}:collision" 24 0 $COLLISION)
+
+        if [ \
+            \( $TX_ERROR -gt $PREV_TX_ERROR \) -o \
+            \( $RX_ERROR -gt $PREV_RX_ERROR \) -o \
+            \( $COLLISION -gt $PREV_COLLISION \) \
+        ]
         then
-            alert "device $DEVICE has communication errors ($TX_ERROR TX errors, $RX_ERROR RX errors, $COLLISION collisions)"
+            alert "device $DEVICE has communication errors ($TX_ERROR TX err, $RX_ERROR RX err, $COLLISION collisions)"
         else
-            echo "device $DEVICE is in good health (no error, no collision)"
+            echo "device $DEVICE is in good health: no new error ($TX_ERROR Tx err, $RX_ERROR RX err, $COLLISION collisions)"
         fi
 
     done
@@ -1994,7 +2059,6 @@ cmd_full_check() {
                 notify "✅ *$HOSTNAME* full-check is now successful"
             fi
         fi
-
     fi
 
     unlock
