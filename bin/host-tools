@@ -12,6 +12,8 @@ MANDATORY_SERVICES=("ssh.service")
 MANDATORY_DOCKERS=()
 MANDATORY_FILES=()
 
+MIN_REMAINING_MEMORY=10
+
 # FILES_AGE format: <file>:<expiration (in minutes)>[:options] where "r" can be an option for recursive checks
 FILES_AGE=()
 # FILES_MIME format: <file>:<typemime> usefull to detect ransomware
@@ -777,6 +779,25 @@ check_sensors() {
 
     done < <( sensors -u )
     IFS="$PREV_IFS"
+}
+
+check_mem_remaining() {
+
+    explain "Check remaining memory"
+
+    # TODO: should check swap
+    local MEM_UNIT=$(grep ^MemTotal </proc/meminfo | awk '{print $3}')
+    local MEM_TOTAL=$(grep ^MemTotal </proc/meminfo | awk '{print $2}')
+    local MEM_FREE=$(grep ^MemFree </proc/meminfo | awk '{print $2}')
+
+    local RATIO=$(( $MEM_FREE*100/$MEM_TOTAL ))
+
+    echo "Total memory: $MEM_TOTAL $MEM_UNIT, remaining memory: $MEM_FREE $MEM_UNIT ( $RATIO % )"
+
+    if [ $RATIO -lt $MIN_REMAINING_MEMORY ]
+    then
+        alert "Host has reached it's minimal memory remaining $MEM_FREE $MEM_UNIT ( $RATIO % free, less than $MIN_REMAINING_MEMORY % )"
+    fi
 }
 
 check_oomkilled() {
