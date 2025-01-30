@@ -832,15 +832,15 @@ check_mem_remaining() {
     # TODO: should check swap
     local MEM_UNIT=$(grep ^MemTotal </proc/meminfo | awk '{print $3}')
     local MEM_TOTAL=$(grep ^MemTotal </proc/meminfo | awk '{print $2}')
-    local MEM_FREE=$(grep ^MemFree </proc/meminfo | awk '{print $2}')
+    local MEM_AVAIL=$(grep ^MemAvailable </proc/meminfo | awk '{print $2}')
 
-    local RATIO=$(( $MEM_FREE*100/$MEM_TOTAL ))
+    local RATIO=$(( $MEM_AVAIL*100/$MEM_TOTAL ))
 
-    echo "Total memory: $(byte_to_human_display $MEM_TOTAL $MEM_UNIT), remaining memory: $(byte_to_human_display $MEM_FREE $MEM_UNIT) ( $RATIO % )"
+    echo "Total memory: $(byte_to_human_display $MEM_TOTAL $MEM_UNIT), remaining memory: $(byte_to_human_display $MEM_AVAIL $MEM_UNIT) ( $RATIO % )"
 
     if [ $RATIO -lt $MIN_REMAINING_MEMORY ]
     then
-        alert "Host has reached it's minimal memory remaining $(byte_to_human_display $MEM_FREE $MEM_UNIT) ( $RATIO % free, less than $MIN_REMAINING_MEMORY % )"
+        alert "Host has reached it's minimal memory remaining $(byte_to_human_display $MEM_AVAIL $MEM_UNIT) ( $RATIO % free, less than $MIN_REMAINING_MEMORY % )"
     fi
 }
 
