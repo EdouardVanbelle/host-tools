@@ -12,13 +12,13 @@ run() {
     if detect_virt
     then
         abort "this is a virtual machine, test is not relevant [ignoring test]"
-        return
+        return $CHECK_IGNORED
     fi
 
     if [ ! -e /sys/class/net ]
     then
         abort "no /sys/class/net found [ignore network check]"
-        return
+        return $CHECK_IGNORED
     fi
 
     local DEVICE

@@ -12,13 +12,13 @@ run() {
     if [ ${#MANDATORY_DOCKERS[@]} == 0 ]
     then
         abort "no docker image in config"
-        return
+        return $CHECK_DISABLED
     fi
 
     if ! which docker >/dev/null
     then
         alert "docker not installed (fix: apt-get install docker-ce) [ignoring test]"
-        return
+        return $CHECK_IGNORED
     fi
 
     local INSTANCE

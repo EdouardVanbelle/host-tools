@@ -32,7 +32,7 @@ run() {
     if [ ${#HOSTS[@]} -eq 0 ]
     then
         abort "no host to check"
-        return 0
+        return $CHECK_DISABLED
     fi
 
     local ARPING=()
@@ -77,7 +77,7 @@ run() {
     if [ ${#PING[@]} -eq 0 ]
     then
         abort "no host to check"
-        return 0
+        return $CHECK_IGNORED
     fi
 
 

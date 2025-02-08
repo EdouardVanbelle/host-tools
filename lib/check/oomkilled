@@ -10,9 +10,6 @@ run() {
 
     explain "check oomkilled process since 1 day"
 
-    # to get number of oom kill since boot time:
-    # awk '{if($1 == "oom_kill") {print $2}}' < /proc/vmstat
-
     if which journalctl >/dev/null
     then
         # try via systemctl
@@ -28,17 +25,27 @@ run() {
         grep -E -i 'killed process|out of memory' /var/log/messages > $TMPDIR/oom.list
     else
         abort "neither journalctl nor kern.log/messages where found, cannot check oomkilled [ignoring test]"
-        return
+        return $CHECK_IMPOSSIBLE
+
+        # Can only report # of oom kill since last boot:
+        # to get number of oom kill since boot time:
+        # awk '{if($1 == "oom_kill") {print $2}}' < /proc/vmstat
+
     fi
+
+    local RETURN=$CHECK_SUCCESS
 
     # if file is non empty
     if [ -s $TMPDIR/oom.list ]
     then
         cat $TMPDIR/oom.list
         alert "found out of memory processes " $(tail -n 1 $TMPDIR/oom.list)
+        RETURN=$CHECK_FAILED
     fi
 
     rm -f $TMPDIR/oom.list
+
+    return $RETURN
 }
 
 

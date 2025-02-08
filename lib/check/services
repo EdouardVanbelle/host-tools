@@ -14,7 +14,7 @@ run() {
     if ! which systemctl >/dev/null
     then
         abort "systemctl not found (system is not running using systemd ?) [ignoring test]"
-        return
+        return $CHECK_IMPOSSIBLE
     fi
 
     # example of output

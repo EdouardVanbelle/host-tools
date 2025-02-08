@@ -7,10 +7,12 @@ init() {
 }
 
 run() {
+    local RETURN=$CHECK_SUCCESS
+
     if [ ${#PARTITIONS_WRITABLE[@]} == 0 ]
     then
         abort "no partition writable to check"
-        return
+        return $CHECK_IGNORED
     fi
 
     for PARTITION in ${PARTITIONS_WRITABLE[@]}
@@ -18,15 +20,19 @@ run() {
         if ! mountpoint -q $PARTITION
         then
             alert "$PARTITION is not a partition..."
+            RETURN=$CHECK_FAILED
         fi
 
         if ! touch $PARTITION/.host-tool-check 2>/dev/null
         then
             alert "$PARTITION is not a writable"
+            RETURN=$CHECK_FAILED
         else
             echo "$PARTITION is writable"
         fi
         rm -f $PARTITION/.host-tool-check
     done
+
+    return $RETURN
 }
 

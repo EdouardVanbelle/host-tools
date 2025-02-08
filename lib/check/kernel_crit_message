@@ -14,7 +14,7 @@ run() {
     then
         # note: could also use dmesg
         abort "journalctl not found [ignoring test]"
-        return
+        return $CHECK_IMPOSSIBLE
     fi
 
     # -p2 = alert & crit

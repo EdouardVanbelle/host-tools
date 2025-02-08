@@ -11,7 +11,7 @@ run() {
     if ( ! to_boolean $CHECK_IPV6 )
     then
         echo "ignore ipv6 check"
-        return
+        return $CHECK_IGNORED
     fi
 
     explain "checking ipv6"
@@ -19,7 +19,7 @@ run() {
     if ! which curl >/dev/null
     then
         alert "curl not found (fix via: apt-get install curl)"
-        return 1
+        return $CHECK_IMPOSSIBLE
     fi
 
     local IPV6=$(curl -s -6 https://ifconfig.me)

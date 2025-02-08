@@ -10,7 +10,7 @@ run() {
     if [ ${#MANDATORY_FILES[@]} == 0 ]
     then
         abort "no imandatory file to check"
-        return
+        return $CHECK_DISABLED
     fi
 
     local FILE
@@ -18,7 +18,6 @@ run() {
     do
         explain "checking that $FILE exists"
         [ -e $FILE ] || alert "$FILE does not exist, please check"
-
     done
 }
 

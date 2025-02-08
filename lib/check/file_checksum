@@ -12,7 +12,7 @@ run() {
     if [ ${#FILES_CHECKSUM[@]} == 0 ]
     then
         abort "no file's checksum to verify"
-        return
+        return $CHECK_DISABLED
     fi
 
     local USEOPENSSL=0
@@ -26,7 +26,7 @@ run() {
             USEOPENSSL=1
         else
             abort "md5sum (coreutils) nor openssl is present, (on debian: apt-get install openssl) [ignoring test]"
-            return
+            return $CHECK_IMPOSSIBLE
         fi
     fi
 

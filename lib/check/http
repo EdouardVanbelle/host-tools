@@ -11,13 +11,13 @@ run() {
     if [ ${#HTTP_CHECKS[@]} == 0 ]
     then
         abort "no http check to perform"
-        return
+        return $CHECK_IGNORED
     fi
 
     if ! which curl >/dev/null
     then
         alert "curl not found (fix via: apt-get install curl)"
-        return 1
+        return $CHECK_IMPOSSIBLE
     fi
 
     local HTTP_CHECK URL TYPE TARGET METHOD

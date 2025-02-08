@@ -48,6 +48,16 @@ ESC_BOLD="\e[1m"
 
 IS_VM=""
 
+# ---------------------------------------- check return
+CHECK_SUCCESS=0
+CHECK_WARNING=1
+CHECK_FAILED=2
+CHECK_IGNORED=253
+CHECK_IMPOSSIBLE=254
+CHECK_DISABLED=255
+
+
+
 # purpose is to detect if we are on a virtual machine (some tests are not relevant on VM)
 detect_virt() {
 

@@ -23,19 +23,19 @@ run() {
     if detect_virt
     then
         abort "this is a virtual machine, test is not relevant [ignoring test]"
-        return
+        return $CHECK_IGNORED
     fi
 
     if [ -z "$(find_disks mmc)" ]
     then
         abort "no MMC found [ignoring test]"
-        return
+        return $CHECK_IGNORED
     fi
 
     if ! which mmc >/dev/null
     then
         abort "mmc not installed (fix: apt-get install mmc-utils) [ignoring test]"
-        return
+        return $CHECK_IMPOSSIBLE
     fi
 
     # foreach disk

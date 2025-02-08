@@ -12,7 +12,7 @@ run() {
     if [ ${#FILES_AGE[@]} == 0 ]
     then
         abort "no file's age to check"
-        return
+        return $CHECK_DISABLED
     fi
 
     # check containers are running

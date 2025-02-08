@@ -10,14 +10,16 @@ run() {
     if detect_virt
     then
         abort "this is a virtual machine, test is not relevant [ignoring test]"
-        return
+        return $CHECK_IGNORED
     fi
 
     if [ ! -f '/proc/mdstat' ]
     then
         abort "no raid (soft) found ignore test"
-        return 0
+        return $CHECK_IGNORED
     fi
+
+    local RETURN=$CHECK_SUCCESS
 
     local DEVICE ACTIVE TYPE STATUS
     while read -r DEVICE ACTIVE TYPE STATUS

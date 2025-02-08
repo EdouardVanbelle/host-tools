@@ -12,9 +12,11 @@ run() {
 
     if ! which apt-get >/dev/null
     then
-           abort "apt-get not found, I only know debian systems [ignoring test]"
-           return
+        abort "apt-get not found, I only know debian systems [ignoring test]"
+        return $CHECK_IMPOSSIBLE
     fi
+
+    RETURN=$CHECK_SUCCESS
 
     apt-get update >$TMPDIR/security-update.list 2>&1
     if grep -q '^[WE]:' $TMPDIR/security-update.list
@@ -28,6 +30,7 @@ run() {
     then
         grep -i security $TMPDIR/security-upgrade.list
         alert "system has security packages to upgrade"
+        RETURN=$CHECK_FAILED
     fi
 
     apt-get clean >/dev/null 2>/dev/null
@@ -35,5 +38,7 @@ run() {
 
     rm -f $TMPDIR/security-upgrade.list
     rm -f $TMPDIR/security-update.list
+
+    return $RETURN
 }
 

@@ -21,7 +21,7 @@ run() {
     if [ ${#ROOT_KEYS[@]} == 0 ]
     then
         echo no ssh key to test
-        return 0
+        return $CHECK_IGNORED
     fi
 
     ROOT_HOME=$(getent passwd root  | cut -d ':' -f 6)
@@ -37,7 +37,7 @@ run() {
     if [ ${#AUTHORIZED_KEY[@]} == 0 ]
     then
         alert "$ROOT_HOME/.ssh/authorized_keys is missing"
-        return 1
+        return $CHECK_FAILED
     fi
 
     local PREV_IFS=$IFS

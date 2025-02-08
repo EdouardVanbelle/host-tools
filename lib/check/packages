@@ -13,7 +13,7 @@ run() {
     if ! which dpkg >/dev/null
     then
         abort "dpkg not found, I only know debian distribution [ignoring test]"
-        return
+        return $CHECK_IMPOSSIBLE
     fi
 
     # check that package are fully installed
@@ -30,7 +30,7 @@ run() {
     if [ ${#MANDATORY_PACKAGES[@]} == 0 ]
     then
        abort "no mandatory package in config"
-       return
+       return $CHECK_IGNORED
     fi
 
     # XXX: dpkg or "apt list --installed ?"

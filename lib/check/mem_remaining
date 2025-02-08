@@ -21,6 +21,9 @@ run() {
     if [ $RATIO -lt $MIN_REMAINING_MEMORY ]
     then
         alert "Host has reached it's minimal memory remaining $(byte_to_human_display $MEM_AVAIL $MEM_UNIT) ( $RATIO % free, less than $MIN_REMAINING_MEMORY % )"
+        return $CHECK_FAILED
     fi
+
+    return $CHECK_SUCCESS
 }
 

@@ -13,19 +13,19 @@ run() {
     if detect_virt
     then
         abort "this is a virtual machine, test is not relevant [ignoring test]"
-        return
+        return $CHECK_IGNORED
     fi
 
     if [ -z "$(find_disks sd)" ]
     then
         abort "no SSD/HD found [ignoring test]"
-        return
+        return $CHECK_IGNORED
     fi
 
     if ! which smartctl >/dev/null
     then
         abort "smartctl not installed (fix: apt-get install smartmontools) [ignoring test]"
-        return
+        return $CHECK_IMPOSSIBLE
     fi
 
     #if which lshw >/dev/null

@@ -10,7 +10,7 @@ run() {
     if [ ${#PARTITIONS[@]} == 0 ]
     then
         abort "no mount point to check"
-        return
+        return $CHECK_DISABLED
     fi
 
     # check data mounted

@@ -11,6 +11,9 @@ run() {
     then
         local REASON="$(tail -n 1 /var/run/reboot-required.pkgs 2>/dev/null)"
         alert "system needs a reboot: $REASON"
+        return $CHECK_FAILED
     fi
+
+    return $CHECK_SUCCESS
 }
 

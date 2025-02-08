@@ -11,13 +11,13 @@ run() {
     if [ ${#FILES_MIME[@]} == 0 ]
     then
         abort "no file's type mime to verify"
-        return
+        return $CHECK_DISABLED
     fi
 
     if ! which file >/dev/null
     then
         abort "file not present, (on debian: apt-get install file) [ignoring test]"
-        return
+        return $CHECK_IMPOSSIBLE
     fi
 
     # check containers are running

@@ -8,6 +8,8 @@ init() {
 
 run() {
 
+    local RETURN=$CHECK_SUCCESS
+
     local PARTITION FSTYPE IPCENT PCENT
     while read -r PARTITION FSTYPE IPCENT PCENT
     do
@@ -28,10 +30,13 @@ run() {
         if [ $IPCENT -ge $DISKLIMIT ]
         then
             alert "$PARTITION reached inode size limit: $IPCENT %"
+            RETURN=$CHECK_FAILED
         else
             echo "$PARTITION inode size ok ($IPCENT %)"
         fi
 
     done < <( df -l --exclude-type="devtmpfs" --exclude-type="tmpfs" --exclude-type="overlay" --output="source,fstype,ipcent,pcent" | tail -n +2 )
+
+    return $RETURN
 }
 

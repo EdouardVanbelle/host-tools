@@ -13,14 +13,14 @@ run() {
     if detect_virt
     then
        abort "this is a virtual machine, test is not relevant [ignoring test]"
-       return
+       return $CHECK_IGNORED
     fi
 
 
     if ! which sensors >/dev/null
     then
        abort "sensors not present, (on debian: apt-get install lm-sensors) [ignoring test]"
-       return
+       return $CHECK_IMPOSSIBLE
     fi
 
     local PREV_IFS="$IFS"

@@ -11,19 +11,19 @@ run() {
     if [ ${#IP_RBLCHECK[@]} == 0 ]
     then
         abort "no ssl check to perform"
-        return
+        return $CHECK_DISABLED
     fi
 
     if [ ${#RBL_SERVICES[@]} == 0 ]
     then
         abort "no RBL services defined"
-        return
+        return $CHECK_DISABLED
     fi
 
     if ! which dig >/dev/null
     then
         alert "dig not found (fix via: apt-get install dnsutils)"
-        return 1
+        return $CHECK_IMPOSSIBLE
     fi
 
     for IP in ${IP_RBLCHECK[@]}

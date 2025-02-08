@@ -15,19 +15,19 @@ run() {
     if [ ${#GITHUB_RELEASES[@]} == 0 ]
     then
         abort "no release to check"
-        return
+        return $CHECK_DISABLED
     fi
 
     if ! which jq >/dev/null
     then
         alert "jq not found (fix via: apt-get install jq)"
-        return 1
+        return $CHECK_IMPOSSIBLE
     fi
 
     if ! which curl >/dev/null
     then
         alert "curl not found (fix via: apt-get install curl)"
-        return 1
+        return $CHECK_IMPOSSIBLE
     fi
 
     local NOW=$(date +'%s')
