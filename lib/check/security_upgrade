@@ -12,24 +12,24 @@ run() {
            return
     fi
 
-    apt-get update >/tmp/security-update.list 2>&1
-    if grep -q '^[WE]:' /tmp/security-update.list
+    apt-get update >$TMPDIR/security-update.list 2>&1
+    if grep -q '^[WE]:' $TMPDIR/security-update.list
     then
         alert "got warning in apt-get update"
-        cat /tmp/security-update.list
+        cat $TMPDIR/security-update.list
     fi
 
-    apt-get upgrade -s >/tmp/security-upgrade.list 2>&1
-    if grep -i security /tmp/security-upgrade.list
+    apt-get upgrade -s >$TMPDIR/security-upgrade.list 2>&1
+    if grep -i security $TMPDIR/security-upgrade.list
     then
-        grep -i security /tmp/security-upgrade.list
+        grep -i security $TMPDIR/security-upgrade.list
         alert "system has security packages to upgrade"
     fi
 
     apt-get clean >/dev/null 2>/dev/null
     #apt-get auto-clean
 
-    rm -f /tmp/security-upgrade.list
-    rm -f /tmp/security-update.list
+    rm -f $TMPDIR/security-upgrade.list
+    rm -f $TMPDIR/security-update.list
 }
 

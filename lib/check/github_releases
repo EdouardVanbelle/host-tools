@@ -33,11 +33,11 @@ run() {
 
     local NOW=$(date +'%s')
 
-    test -d "$LIBDIR/cache" || mkdir "$LIBDIR/cache"
+    test -d "$VARDIR/cache" || mkdir "$VARDIR/cache"
 
-    # note: prefer ls rather for CACHE in "$LIBDIR"/cache/github.*, will cover empty directory
+    # note: prefer ls rather for CACHE in "$VARDIR"/cache/github.*, will cover empty directory
     local CACHE
-    for CACHE in $(ls "$LIBDIR"/cache/github.* 2>/dev/null)
+    for CACHE in $(ls "$VARDIR"/cache/github.* 2>/dev/null)
     do
         local CTIME=$(stat -c '%Y' $CACHE)
         if [ $[ $NOW - $CTIME ] -gt $[ 3600 * 24 * $GITHUB_CACHE_TTL ] ]
@@ -65,7 +65,7 @@ run() {
 
         URL="https://api.github.com/repos/$OWNER/$REPO/releases/latest"
 
-        CACHE="$LIBDIR/cache/github.$OWNER-$REPO.latest"
+        CACHE="$VARDIR/cache/github.$OWNER-$REPO.latest"
 
         local do_alert="alert"
 

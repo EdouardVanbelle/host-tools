@@ -20,19 +20,19 @@ run() {
     # -p2 = alert & crit
     if [ -z "$KERNEL_CRITICAL_IGNORE" ]
     then
-        journalctl -b -k -e -p2 -q -x --no-pager --since="$(date --iso --date='3day ago')" >/tmp/critmsg
+        journalctl -b -k -e -p2 -q -x --no-pager --since="$(date --iso --date='3day ago')" >$TMPDIR/critmsg
     else
-        journalctl -b -k -e -p2 -q -x --no-pager --since="$(date --iso --date='3day ago')" | grep -v -E "$KERNEL_CRITICAL_IGNORE" >/tmp/critmsg
+        journalctl -b -k -e -p2 -q -x --no-pager --since="$(date --iso --date='3day ago')" | grep -v -E "$KERNEL_CRITICAL_IGNORE" >$TMPDIR/critmsg
     fi
 
     # if file is non empty
-    if [ -s /tmp/critmsg ]
+    if [ -s $TMPDIR/critmsg ]
     then
-        cat /tmp/critmsg
-        alert "found critical kernel message " $(tail -n 1 /tmp/critmsg)
+        cat $TMPDIR/critmsg
+        alert "found critical kernel message " $(tail -n 1 $TMPDIR/critmsg)
     fi
 
-    rm -f /tmp/critmsg
+    rm -f $TMPDIR/critmsg
 
 }
 

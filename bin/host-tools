@@ -6,8 +6,8 @@ WEBHOOK=""
 
 CONFIG="/etc/host-tools.conf"
 
-LIBDIR="/var/lib/host-tools"
-test -d $LIBDIR || mkdir $LIBDIR || echo "warning: unable to create $LIBDIR"
+VARDIR="/var/lib/host-tools"
+test -d $VARDIR || mkdir $VARDIR || echo "warning: unable to create $VARDIR"
 
 # lookup for RUNDIR
 RUNDIR="/run" # Recent distrib
@@ -15,10 +15,12 @@ test -e $RUNDIR || RUNDIR="/var/run" # Old distribs
 
 TMPDIR="/tmp"
 
+BASEDIR=$(readlink -f $(dirname $0)/..)
+
 HT_RUNDIR="$RUNDIR/host-tools"
 test -d $HT_RUNDIR || mkdir $HT_RUNDIR
 
-REPORT="$LIBDIR/host-tools.report"
+REPORT="$VARDIR/host-tools.report"
 LOCK="$RUNDIR/host-tools.lock"
 HOSTNAME=$(hostname)
 SCRIPTNAME=$(basename $0)
@@ -203,7 +205,7 @@ volatile_cache() {
 }
 
 persistent_cache() {
-    _cache "$LIBDIR/$1" "$2" "$3" "$4"
+    _cache "$VARDIR/$1" "$2" "$3" "$4"
 }
 
 
@@ -661,9 +663,7 @@ EOF
 
 # ------------------------------------------------------ main
 
-DIR=$(dirname $(readlink -f $0))
-# FIXME
-for MODULE in $DIR/../lib/check/*
+for MODULE in $BASEDIR/lib/check/*
 do
     load_module $MODULE check
 done

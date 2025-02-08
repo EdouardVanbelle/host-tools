@@ -41,14 +41,14 @@ run() {
 
         explain "checking mmc disk $DISK"
 
-        mmc extcsd read /dev/$DISK | grep ^eMMC >/tmp/mmc.health
+        mmc extcsd read /dev/$DISK | grep ^eMMC >$TMPDIR/mmc.health
 
-        if [ -s /tmp/mmc.health ]
+        if [ -s $TMPDIR/mmc.health ]
         then
 
-            cat /tmp/mmc.health
+            cat $TMPDIR/mmc.health
 
-            EOL=$(grep EXT_CSD_PRE_EOL_INFO /tmp/mmc.health | sed 's/.*: 0x//')
+            EOL=$(grep EXT_CSD_PRE_EOL_INFO $TMPDIR/mmc.health | sed 's/.*: 0x//')
 
             if [ $((16#$EOL)) -gt 2 ]
             then
@@ -61,7 +61,7 @@ run() {
             abort "no eMMC information [cannot perform test]"
         fi
 
-        rm -f /tmp/mmc.health
+        rm -f $TMPDIR/mmc.health
 
     done
 

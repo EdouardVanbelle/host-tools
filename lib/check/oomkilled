@@ -13,28 +13,28 @@ run() {
     then
         # try via systemctl
         # -p4 = warning
-        journalctl -b -k -e -p4 -x -q --no-pager --since="$(date --iso --date='1day ago')" | grep -E -i 'killed process|out of memory' > /tmp/oom.list
+        journalctl -b -k -e -p4 -x -q --no-pager --since="$(date --iso --date='1day ago')" | grep -E -i 'killed process|out of memory' > $TMPDIR/oom.list
     elif [ -e /var/log/kern.log ]
     then
         # try via messages
-        grep -E -i 'killed process|out of memory' /var/log/kern.log > /tmp/oom.list
+        grep -E -i 'killed process|out of memory' /var/log/kern.log > $TMPDIR/oom.list
     elif [ -e /var/log/messages ]
     then
         # try via messages
-        grep -E -i 'killed process|out of memory' /var/log/messages > /tmp/oom.list
+        grep -E -i 'killed process|out of memory' /var/log/messages > $TMPDIR/oom.list
     else
         abort "neither journalctl nor kern.log/messages where found, cannot check oomkilled [ignoring test]"
         return
     fi
 
     # if file is non empty
-    if [ -s /tmp/oom.list ]
+    if [ -s $TMPDIR/oom.list ]
     then
-        cat /tmp/oom.list
-        alert "found out of memory processes " $(tail -n 1 /tmp/oom.list)
+        cat $TMPDIR/oom.list
+        alert "found out of memory processes " $(tail -n 1 $TMPDIR/oom.list)
     fi
 
-    rm -f /tmp/oom.list
+    rm -f $TMPDIR/oom.list
 }
 
 

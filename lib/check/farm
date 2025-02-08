@@ -111,9 +111,9 @@ run() {
         return 0
     fi
 
-    fping -c 3 -q -B 1.5 "${PING[@]}" 2>/tmp/host-tools.ping
+    fping -c 3 -q -B 1.5 "${PING[@]}" 2>$TMPDIR/host-tools.ping
 
-    cat /tmp/host-tools.ping
+    cat $TMPDIR/host-tools.ping
 
     while read -r SERVER PREPORT
     do
@@ -121,9 +121,9 @@ run() {
         contains "$SERVER" "${SILENT_HOSTDOWN[@]}" && do_alert="silent_alert"
         $do_alert "ping error from: $SERVER $PREPORT"
 
-    done < <(grep -v "min/avg/max" /tmp/host-tools.ping)
+    done < <(grep -v "min/avg/max" $TMPDIR/host-tools.ping)
 
-    rm -f /tmp/host-tools.ping
+    rm -f $TMPDIR/host-tools.ping
 
 }
 
