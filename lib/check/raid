@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="check soft raid consistency"
 
 init() {
     SILENT_RAID=()

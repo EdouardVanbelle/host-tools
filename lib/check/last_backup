@@ -2,6 +2,11 @@
 
 DESCRIPTION="replace me"
 
+init() {
+    echo "pending dev"
+    return 1
+}
+
 run() {
     # FIXME: must do it
     true

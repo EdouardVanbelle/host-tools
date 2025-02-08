@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="check required packages or forbidden packages"
 
 init() {
     MANDATORY_PACKAGES=("openssh-server")

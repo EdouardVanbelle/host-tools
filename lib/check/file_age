@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="check specified file age"
 
 init() {
     # FILES_AGE format: <file>:<expiration (in minutes)>[:options] where "r" can be an option for recursive checks

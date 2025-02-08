@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="check disk health and temperature"
 
 init() {
     SILENT_BADSECTOR=()

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="check ipv6"
 
 init() {
     CHECK_IPV6="NO" # default no

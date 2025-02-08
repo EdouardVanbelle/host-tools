@@ -1,6 +1,10 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="check recent oom kill"
+
+init() {
+    return 0
+}
 
 run() {
 

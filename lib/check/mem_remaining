@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="check remaining memory"
 
 init() {
     MIN_REMAINING_MEMORY=10

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="check specified file existance"
 
 init() {
     MANDATORY_FILES=()

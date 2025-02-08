@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="lookup critical messages in journal"
 
 init() {
     KERNEL_CRITICAL_IGNORE=""
