@@ -31,7 +31,16 @@ run() {
 
         explain "checking pending changes on $GIT_DIR"
 
-        BRANCH=$(git name-rev --name-only $(git rev-parse HEAD))
+        COMMIT=$(git rev-parse HEAD 2>/dev/null)
+        if [ $? -ne 0 ]
+        then
+            alert "$GIT_DIR does not seem to be tracked by git"
+            RETURN=$(max $? $RETURN)
+            echo
+            continue
+        fi
+
+        BRANCH=$(git name-rev --name-only $COMMIT)
         echo "  current branch $BRANCH"
 
         # get the tracking branch
@@ -52,7 +61,6 @@ run() {
         fi
 
         DELTA="$(git status -s -uno | head -n 5)"
-
         if [ ! -z "$DELTA" ]
         then
             alert "$GIT_DIR has tracked files with pending changed\n$DELTA\n..."
