@@ -1,0 +1,107 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    GITHUB_RELEASES=()
+    # FIXME: rename it as github as no more exclusibity
+    GITHUB_CACHE_TTL=7
+    echo "init ok"
+}
+
+run() {
+
+    # TODO: check for future: https://forums.docker.com/t/how-can-i-list-tags-for-a-repository/32577/8 (verify tag list on github)
+
+    if [ ${#GITHUB_RELEASES[@]} == 0 ]
+    then
+        abort "no release to check"
+        return
+    fi
+
+    if ! which jq >/dev/null
+    then
+        alert "jq not found (fix via: apt-get install jq)"
+        return 1
+    fi
+
+    if ! which curl >/dev/null
+    then
+        alert "curl not found (fix via: apt-get install curl)"
+        return 1
+    fi
+
+    local NOW=$(date +'%s')
+
+    test -d "$LIBDIR/cache" || mkdir "$LIBDIR/cache"
+
+    # note: prefer ls rather for CACHE in "$LIBDIR"/cache/github.*, will cover empty directory
+    local CACHE
+    for CACHE in $(ls "$LIBDIR"/cache/github.* 2>/dev/null)
+    do
+        local CTIME=$(stat -c '%Y' $CACHE)
+        if [ $[ $NOW - $CTIME ] -gt $[ 3600 * 24 * $GITHUB_CACHE_TTL ] ]
+        then
+            echo "$CACHE is older than $GITHUB_CACHE_TTL days, purging it"
+            rm -f $CACHE
+        fi
+
+    done
+
+    local GITHUB_RELEASE
+    for GITHUB_RELEASE in ${GITHUB_RELEASES[@]}
+    do
+        echo
+
+        # FIXME: replace 'cut' with bash subtitutions
+        local FULLREPO=$(echo $GITHUB_RELEASE | cut -d ':' -f 1)
+        local CURRENT_RELEASE=$(echo $GITHUB_RELEASE | cut -d ':' -f 2)
+
+        # FIXME: test that FULLREPO contains /
+        local OWNER=$(echo $FULLREPO | cut -d '/' -f 1)
+        local REPO=$(echo $FULLREPO | cut -d '/' -f 2)
+
+        explain "checking github $OWNER/$REPO, current release $CURRENT_RELEASE"
+
+        URL="https://api.github.com/repos/$OWNER/$REPO/releases/latest"
+
+        CACHE="$LIBDIR/cache/github.$OWNER-$REPO.latest"
+
+        local do_alert="alert"
+
+        if [ -e $CACHE ]
+        then
+            echo "using cache $CACHE"
+            do_alert="silent_alert"
+        else
+            echo "fetching $URL to $CACHE"
+            curl -s -H 'User-Agent: host-tools' -H 'Accept: application/vnd.github+json' $URL > $CACHE
+        fi
+
+        ERROR=$(cat $CACHE | jq -r '.message')
+
+        if [ "$ERROR" != "null" ]
+        then
+            $do_alert "github check $OWNER/$REPO: error reading api: $ERROR"
+            rm -f $CACHE
+            continue
+        fi
+
+        RELEASE=$(cat $CACHE | jq -r '.tag_name')
+
+        if [ -z "$RELEASE" ]
+        then
+            $do_alert "github check $OWNER/$REPO: unable to parse $CACHE"
+            continue
+        fi
+
+        if [ "$CURRENT_RELEASE" != "$RELEASE" ]
+        then
+            $do_alert "github $OWNER/$REPO release $RELEASE is available (current=$CURRENT_RELEASE)"
+            continue
+        fi
+
+        echo "github $OWNER/$REPO release match ($RELEASE)"
+    done
+}
+

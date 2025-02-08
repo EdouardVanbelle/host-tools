@@ -1,0 +1,71 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    HTTP_CHECKS=()
+}
+
+run() {
+
+    if [ ${#HTTP_CHECKS[@]} == 0 ]
+    then
+        abort "no http check to perform"
+        return
+    fi
+
+    if ! which curl >/dev/null
+    then
+        alert "curl not found (fix via: apt-get install curl)"
+        return 1
+    fi
+
+    local HTTP_CHECK URL TYPE TARGET METHOD
+    for HTTP_CHECK in ${HTTP_CHECKS[@]}
+    do
+        URL=$(echo "$HTTP_CHECK" | cut -d '|' -f 1 )
+        TYPE=$(echo "$HTTP_CHECK" | cut -d '|' -f 2 )
+        TARGET=$(echo "$HTTP_CHECK" | cut -d '|' -f 3 )
+        METHOD=$(echo "$HTTP_CHECK" | cut -d '|' -f 4 )
+        [ -z "$METHOD" ] && METHOD="GET"
+
+        #explain "testing $URL expecting $TYPE with target $TARGET"
+
+        FILTER="head -n 1"
+
+        case $TYPE in
+            AUTHREQUIRED)
+                REGEX="HTTP.*401"
+                ;;
+            FORBIDDEN)
+                REGEX="HTTP.*403"
+                ;;
+            NOTFOUND)
+                REGEX="HTTP.*404"
+                ;;
+            NOTALLOWED)
+                REGEX="HTTP.*405"
+                ;;
+            REDIRECT)
+                #  no filter
+                FILTER="cat"
+                REGEX="location: $TARGET"
+                ;;
+            OK)
+                REGEX="HTTP.*200"
+                ;;
+            *)
+                alert "wrong format in HTTP_CHECKS, please use: <url>|<AUTHREQUIRED|FORBIDDEN|NOTFOUND|NOTALLOWED|REDIRECT|OK>|<target>"
+                return 1
+                ;;
+        esac
+
+        if curl -s -D - -o /dev/null -X $METHOD --header 'User-Agent: host-tool/check' "$URL" | $FILTER | grep -q -e "$REGEX"
+        then
+            echo "http check $METHOD $URL is a correct $TYPE $TARGET"
+        else
+            alert "http check $METHOD $URL failed for $TYPE"
+        fi
+    done
+}
+

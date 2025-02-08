@@ -1,0 +1,129 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    DOMAIN=""
+    HOSTS=()
+    SILENT_HOSTDOWN=()
+}
+
+run() {
+
+    # XXX: this check is supposed to be minimalist, if you are interested in managing famrs, I recommand 'consul' or similar
+    #
+    explain "checking hosts ping"
+
+    if [ -n "$DOMAIN" ]
+    then
+        if ! which dig >/dev/null
+        then
+            alert "dig not found, I advise you to 'apt install dnsutils'"
+        else
+            echo "discovering $DOMAIN farm using DNS..."
+            for HOST in $(dig +short SRV farm.$DOMAIN | sed 's/^[0-9 ]\+ //; s/\.$//' | sort )
+            do
+                HOSTS+=( $HOST )
+            done
+        fi
+
+    fi
+
+    if [ ${#HOSTS[@]} -eq 0 ]
+    then
+        abort "no host to check"
+        return 0
+    fi
+
+    local ARPING=()
+    local PING=()
+
+    # dispatch ping and arping
+    local SERVER
+    for SERVER in "${HOSTS[@]}"
+    do
+        if [[ "$SERVER" =~ '|arp' ]]
+        then
+           ARPING+=(${SERVER%|*})
+        else
+           PING+=($SERVER)
+        fi
+    done
+
+    if [ ${#ARPING[@]} -gt 0 ]
+    then
+
+        if ! which arping > /dev/null
+        then
+            echo "Please install arping, via 'apt install arping'" &>2
+        else
+            # check ARP
+            for SERVER in "${ARPING[@]}"
+            do
+                explain "checking server $SERVER (via ARP)"
+
+                if arping -q -c 3 $SERVER >/dev/null
+                then
+                    echo "ping (via ARP): $SERVER is alive"
+                else
+                    local do_alert="alert"
+                    contains "$SERVER" "${SILENT_HOSTDOWN[@]}" && do_alert="silent_alert"
+                    $do_alert "no arping answer from $SERVER"
+                fi
+            done
+        fi
+    fi
+
+    if [ ${#PING[@]} -eq 0 ]
+    then
+        abort "no host to check"
+        return 0
+    fi
+
+
+    if ! which fping >/dev/null
+    then
+        # fallback
+
+        abort "fping not found, fall back to ping. I recommand you to 'apt install fping'"
+
+        for SERVER in "${PING[@]}"
+        do
+            explain "checking server $SERVER (ping)"
+
+            if [ "$SERVER" == "$HOSTNAME" ]
+            then
+                echo "I am $SERVER, no need to test :)"
+                continue
+            fi
+
+            if ping -q -c 3 $SERVER >/dev/null
+            then
+                echo ping: $SERVER is alive
+            else
+
+                local do_alert="alert"
+                contains "$SERVER" "${SILENT_HOSTDOWN[@]}" && do_alert="silent_alert"
+                $do_alert "no ping answer from $SERVER"
+            fi
+        done
+
+        return 0
+    fi
+
+    fping -c 3 -q -B 1.5 "${PING[@]}" 2>/tmp/host-tools.ping
+
+    cat /tmp/host-tools.ping
+
+    while read -r SERVER PREPORT
+    do
+        local do_alert="alert"
+        contains "$SERVER" "${SILENT_HOSTDOWN[@]}" && do_alert="silent_alert"
+        $do_alert "ping error from: $SERVER $PREPORT"
+
+    done < <(grep -v "min/avg/max" /tmp/host-tools.ping)
+
+    rm -f /tmp/host-tools.ping
+
+}
+

@@ -1,0 +1,47 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    # FILES_MIME format: <file>:<typemime> usefull to detect ransomware
+    FILES_MIME=()
+}
+
+run() {
+    if [ ${#FILES_MIME[@]} == 0 ]
+    then
+        abort "no file's type mime to verify"
+        return
+    fi
+
+    if ! which file >/dev/null
+    then
+        abort "file not present, (on debian: apt-get install file) [ignoring test]"
+        return
+    fi
+
+    # check containers are running
+    local ELEMENT
+    for ELEMENT in "${FILES_MIME[@]}"
+    do
+        local FILE=$(echo "$ELEMENT" | cut -d : -f 1)
+        local MIME=$(echo "$ELEMENT" | cut -d : -f 2)
+
+        if [ ! -e "$FILE" ]
+        then
+            alert "file mime type failed: $FILE does not exists"
+            continue
+        fi
+
+        CURRENT_MIME=$(file -b --mime-type "$FILE" 2>&1)
+
+        if [ $CURRENT_MIME == "$MIME" ]
+        then
+            echo "file $FILE type is '$MIME' as expected"
+        else
+            alert "file $FILE type is '$CURRENT_MIME' (was expecting '$MIME')"
+        fi
+    done
+}
+
+

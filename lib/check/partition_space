@@ -1,0 +1,36 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    DISKLIMIT=75
+}
+
+run() {
+
+    while read -r PARTITION FSTYPE IPCENT PCENT
+    do
+        IPCENT=${IPCENT%?}
+        PCENT=${PCENT%?}
+
+        explain "checking partition $PARTITION"
+
+        if [ $PCENT -ge $DISKLIMIT ]
+        then
+            alert "$PARTITION reached size limit: $PCENT %"
+        else
+            echo "$PARTITION size ok ($PCENT %)"
+        fi
+
+        [ -z "$IPCENT" ] && continue
+
+        if [ $IPCENT -ge $DISKLIMIT ]
+        then
+            alert "$PARTITION reached inode size limit: $IPCENT %"
+        else
+            echo "$PARTITION inode size ok ($IPCENT %)"
+        fi
+
+    done < <( df -l --exclude-type="devtmpfs" --exclude-type="tmpfs" --exclude-type="overlay" --output="source,fstype,ipcent,pcent" | tail -n +2 )
+}
+

@@ -1,0 +1,81 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+run() {
+
+    explain "checking sensors (like temperature)"
+
+    if detect_virt
+    then
+       abort "this is a virtual machine, test is not relevant [ignoring test]"
+       return
+    fi
+
+
+    if ! which sensors >/dev/null
+    then
+       abort "sensors not present, (on debian: apt-get install lm-sensors) [ignoring test]"
+       return
+    fi
+
+    local PREV_IFS="$IFS"
+    local IFS=""
+    local NAME
+    local INPUT
+    local MAX
+    while read -r LINE
+    do
+        if [ -z $LINE ]
+        then
+            # new line maybe we have a value
+            if [ -n "$NAME" ] && [ -n "$INPUT" ]
+            then
+                if [[ $NAME =~ temp ]]
+                then
+                    MAX=80
+                fi
+                sensor_check "$NAME" $INPUT $MAX
+            fi
+
+            # clean values for next reading
+            NAME=""
+            INPUT=""
+            MAX=""
+        fi
+
+        if [[ "$LINE" =~ ^[A-Za-z] ]]
+        then
+            if [ -z "$NAME" ]
+            then
+                NAME=$LINE
+            else
+                NAME="$NAME > "$LINE
+            fi
+        elif [[ "$LINE" =~ ^(  .*_input:) ]]
+        then
+            # append sensor prefix to header
+            local LNAME=${LINE%%_input*}
+            NAME="$NAME > ${LNAME## * }"
+            # prinft %.0f = round value (precision to 0 decimal)
+            INPUT=$(printf "%.0f" ${LINE#*: })
+        elif [[ "$LINE" =~ ^(  .*_max:) ]]
+        then
+            # prinft %.0f = round value (precision to 0 decimal)
+            MAX=$(printf "%.0f" ${LINE#*: })
+        fi
+
+        if [ -n "$NAME" ] && [ -n "$INPUT" ] && [ -n "$MAX" ]
+        then
+            sensor_check "$NAME" $INPUT $MAX
+
+            # clean values for next reading
+            NAME=""
+            INPUT=""
+            MAX=""
+        fi
+
+    done < <( sensors -u )
+    IFS="$PREV_IFS"
+}
+

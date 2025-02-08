@@ -1,0 +1,65 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    IP_RBLCHECK=()
+    RBL_SERVICES=( "dnsbl.httpbl.org")
+}
+
+run() {
+    if [ ${#IP_RBLCHECK[@]} == 0 ]
+    then
+        abort "no ssl check to perform"
+        return
+    fi
+
+    if [ ${#RBL_SERVICES[@]} == 0 ]
+    then
+        abort "no RBL services defined"
+        return
+    fi
+
+    if ! which dig >/dev/null
+    then
+        alert "dig not found (fix via: apt-get install dnsutils)"
+        return 1
+    fi
+
+    for IP in ${IP_RBLCHECK[@]}
+    do
+        local REVERSE=$(echo $IP | sed -ne "s~^\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)$~\4.\3.\2.\1~p")
+
+        if [ "x${REVERSE}" = "x" ] ; then
+            alert  "IMHO '$IP' doesn't look like a valid IP address"
+            continue
+        fi
+
+        for BL in ${RBL_SERVICES[@]}
+        do
+            NS=""
+
+            # obfusq key
+            local SERVICE=$BL
+            if [[ $BL =~ \.dq\.spamhaus ]]
+            then
+                SERVICE=$(echo "$BL" | cut -d . -f 2- )
+                NS="@"$(dig +short NS $SERVICE | head -n1)
+            fi
+
+            # use dig to lookup the name in the blacklist
+            echo querying $REVERSE $SERVICE $NS
+
+            LISTED="$(dig -4 +short -t A ${REVERSE}.${BL}. $NS)"
+
+            if [ -z "$LISTED" ]
+            then
+                echo "$IP is (rbl)-clean on $SERVICE"
+            else
+                alert "$IP is (rbl)-listed on $SERVICE: $LISTED"
+            fi
+        done
+
+    done
+}
+

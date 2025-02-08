@@ -1,0 +1,56 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    ROOT_KEYS=()
+}
+
+##
+#
+# check keys are crypted
+# for F in $(grep -l "BEGIN OPENSSH PRIVATE KEY" *); do echo -n "$F: "; grep -v -- '^----' $F | base64 -d | head -c 40 | tr -c '[:print:]' ' '; echo; done
+#
+# if crypted:
+# /root/.ssh/id_rsa_tun: openssh-key-v1     aes256-ctr    bcrypt
+# if clear:
+# /root/.ssh/id_rsa_tun: openssh-key-v1     none    none
+
+run() {
+
+    if [ ${#ROOT_KEYS[@]} == 0 ]
+    then
+        echo no ssh key to test
+        return 0
+    fi
+
+    ROOT_HOME=$(getent passwd root  | cut -d ':' -f 6)
+
+    local AUTHORIZED_KEY=()
+
+    # XXX works only with openssh, should take in consideration dropbear /etc/dropbear/authorized_keys
+    for F in "$ROOT_HOME/.ssh/authorized_keys" "$ROOT_HOME/.ssh/authorized_keys2"
+    do
+        [ -e "$F" ] && AUTHORIZED_KEY+=($F)
+    done
+
+    if [ ${#AUTHORIZED_KEY[@]} == 0 ]
+    then
+        alert "$ROOT_HOME/.ssh/authorized_keys is missing"
+        return 1
+    fi
+
+    local PREV_IFS=$IFS
+    IFS=""
+    for KEY in "${ROOT_KEYS[@]}"
+    do
+        local SHORTKEY=$(echo "$KEY" | awk '{ print $1 " ... " $NF }')
+        echo "ensure that $SHORTKEY is present for root"
+        if ! ( cat "${AUTHORIZED_KEY[@]}" 2>/dev/null | grep -q ^$KEY )
+        then
+            alert "$SHORTKEY is missing in $AUTHORIZED_KEY"
+        fi
+    done
+    IFS=$PREV_IFS
+}
+

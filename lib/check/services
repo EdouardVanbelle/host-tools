@@ -1,0 +1,47 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    MANDATORY_SERVICES=("ssh.service")
+    SILENT_SERVICES=()
+}
+
+run() {
+
+    explain "checking systemd services status"
+
+    if ! which systemctl >/dev/null
+    then
+        abort "systemctl not found (system is not running using systemd ?) [ignoring test]"
+        return
+    fi
+
+    # example of output
+    # networking.service loaded    failed failed Raise network interfaces
+    # ureadahead.service not-found failed failed ureadahead.service
+    while read -r SERVICE LOAD ACTIVE RUN DESCRIPTION
+    do
+        local do_alert="alert"
+        contains "$SERVICE" "${SILENT_SERVICES[@]}" && do_alert=silent_alert
+
+        $do_alert "service $SERVICE warning (loaded=$LOAD active=$ACTIVE run=$RUN)"
+
+    done < <( systemctl --state=failed  --no-pager --no-legend list-units )
+
+    for SERVICE in ${MANDATORY_SERVICES[@]}
+    do
+        systemctl --no-pager --no-legend list-units "$SERVICE" | { read -r _S LOAD ACTIVE RUN DESCRIPTION
+            if [ "$_S" == "" ]
+            then
+                alert "mandatory service $SERVICE not running (not found)"
+            elif [ "$RUN" != "running" ]
+            then
+                alert "mandatory service $SERVICE not running (loaded=$LOAD active=$ACTIVE run=$RUN)"
+            else
+                echo "mandatory service $SERVICE is running"
+            fi
+        }
+    done
+}
+

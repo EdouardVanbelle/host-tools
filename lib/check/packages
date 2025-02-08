@@ -1,0 +1,60 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    MANDATORY_PACKAGES=("openssh-server")
+    FORBIDDEN_PACKAGES=()
+}
+
+run() {
+
+    # FIXME should support alpine with apk
+    if ! which dpkg >/dev/null
+    then
+        abort "dpkg not found, I only know debian distribution [ignoring test]"
+        return
+    fi
+
+    # check that package are fully installed
+    dpkg --audit > /tmp/host-tools.package-audit
+
+    if [ -s /tmp/host-tools.package-audit ]
+    then
+        alert "found partial or unconfigured packages during dpkg audit"
+        cat /tmp/host-tools.packages-audit
+    fi
+
+    rm -f /tmp/host-tools.package-audit
+
+    if [ ${#MANDATORY_PACKAGES[@]} == 0 ]
+    then
+       abort "no mandatory package in config"
+       return
+    fi
+
+    # XXX: dpkg or "apt list --installed ?"
+    dpkg --get-selections > /tmp/host-tools.package-list
+
+    for PACKAGE in ${MANDATORY_PACKAGES[@]}
+    do
+        if grep -q "^$PACKAGE\s\+install$" /tmp/host-tools.package-list
+        then
+            echo "mandatory package $PACKAGE is installed"
+        else
+            alert "mandatory package $PACKAGE is missing"
+        fi
+    done
+
+    for PACKAGE in ${FORBIDDEN_PACKAGES[@]}
+    do
+        if grep -q "^$PACKAGE\s\+install$" /tmp/host-tools.package-list
+        then
+            alert "forbidden package $PACKAGE must be removed/purged"
+        fi
+    done
+
+    rm -f /tmp/host-tools.package-list
+
+}
+

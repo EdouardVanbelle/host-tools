@@ -1,0 +1,32 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    PARTITIONS_WRITABLE=()
+}
+
+run() {
+    if [ ${#PARTITIONS_WRITABLE[@]} == 0 ]
+    then
+        abort "no partition writable to check"
+        return
+    fi
+
+    for PARTITION in ${PARTITIONS_WRITABLE[@]}
+    do
+        if ! mountpoint -q $PARTITION
+        then
+            alert "$PARTITION is not a partition..."
+        fi
+
+        if ! touch $PARTITION/.host-tool-check 2>/dev/null
+        then
+            alert "$PARTITION is not a writable"
+        else
+            echo "$PARTITION is writable"
+        fi
+        rm -f $PARTITION/.host-tool-check
+    done
+}
+

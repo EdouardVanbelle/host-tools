@@ -1,0 +1,12 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+run() {
+    if [ \( -f "$RUNDIR/reboot-required" \) -o \( -f "$RUNDIR/reboot-required.pkgs" \) ]
+    then
+        local REASON="$(tail -n 1 /var/run/reboot-required.pkgs 2>/dev/null)"
+        alert "system needs a reboot: $REASON"
+    fi
+}
+

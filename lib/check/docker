@@ -1,0 +1,184 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    MANDATORY_DOCKERS=()
+    SILENT_DOCKER_NEEDUPGRADE=()
+}
+
+run() {
+
+    if [ ${#MANDATORY_DOCKERS[@]} == 0 ]
+    then
+        abort "no docker image in config"
+        return
+    fi
+
+    if ! which docker >/dev/null
+    then
+        alert "docker not installed (fix: apt-get install docker-ce) [ignoring test]"
+        return
+    fi
+
+    local INSTANCE
+    # check containers are running
+    for INSTANCE in ${MANDATORY_DOCKERS[@]}
+    do
+
+        echo
+        explain "checking that mandatory docker $INSTANCE running"
+        if [[ $(docker inspect -f '{{.State.Running}}' $INSTANCE 2>/dev/null) != "true" ]]
+        then
+            alert "mandatory container $INSTANCE not running"
+            continue
+        fi
+
+        if [[ $(docker inspect -f '{{.State.Paused}}' $INSTANCE 2>/dev/null) == "true" ]]
+        then
+            alert "mandatory container $INSTANCE is paused"
+            continue
+        fi
+
+        local IMAGE=`docker container inspect -f '{{ .Config.Image}}' $INSTANCE`
+        local VERSION=`docker container inspect -f '{{ index .Config.Labels "org.opencontainers.image.version" }}' $INSTANCE`
+
+        if [ -z "$VERSION" ]
+        then
+            VERSION="-unknown-"
+        fi
+
+        echo "container $INSTANCE is using image: $IMAGE with version: $VERSION"
+
+        local LOCAL_HASH=`docker image inspect $IMAGE -f '{{ index .RepoDigests 0 }}' 2>/dev/null | cut -d @ -f 2`
+
+        if [ -z "$LOCAL_HASH" ]
+        then
+            echo container $INSTANCE is using a local image $IMAGE
+        else
+            TAG=${IMAGE#*:}
+            if [[ $IMAGE =~ / ]];
+            then
+                    FULLIMAGE=${IMAGE%:*}
+            else
+                    FULLIMAGE=library/${IMAGE%:*}
+            fi
+
+            # FIXME: should cache answer to avoid flood
+            REGISTRY_HASH=`curl -s --header 'Accept: application/json' "https://hub.docker.com/v2/repositories/$FULLIMAGE/tags/$TAG"  | jq -r '.digest'`
+
+            case $REGISTRY_HASH in
+                null)
+                    echo "not in registry or got an error"
+                    ;;
+
+                $LOCAL_HASH)
+                    echo "container $INSTANCE is using same $IMAGE on registry ($REGISTRY_HASH)"
+                    ;;
+                *)
+                    silent_alert "container $INSTANCE is using an old image $IMAGE (found a new hash on registry: $REGISTRY_HASH)"
+                    ;;
+            esac
+        fi
+
+        explain "checking container $INSTANCE security"
+        # container is running, check if need upgrade/a rebuilt
+
+        # FIXME avoid docker exec in this case
+        # DISTRIBUTION=$(docker container export $INSTANCE | tar -xO etc/os-release 2>/dev/null | grep ^ID= | cut -d "=" -f 2)
+        DISTRIBUTION=$(docker container exec $INSTANCE /bin/sh -c 'grep ^ID= /etc/os-release' | cut -d "=" -f 2)
+
+        case $DISTRIBUTION in
+
+            debian)
+                echo "$INSTANCE is a debian"
+
+                docker container exec $INSTANCE /bin/sh -c 'apt-get update >/dev/null 2>/dev/null; apt-get upgrade -s; apt-get clean; rm -rf /var/lib/apt/lists/*' >"/tmp/container-$INSTANCE.package-upgrade"
+                if grep -i security "/tmp/container-$INSTANCE.package-upgrade"
+                then
+                    local do_alert="alert"
+                    contains "$INSTANCE" "${SILENT_DOCKER_NEEDUPGRADE[@]}" && do_alert="silent_alert"
+                    $do_alert "container $INSTANCE need security upgrade (or a rebuild)"
+                fi
+
+                rm -f "/tmp/container-$INSTANCE.package-upgrade"
+
+                ;;
+            alpine)
+                echo "$INSTANCE is an alpine"
+
+                docker container exec $INSTANCE /bin/sh -c 'apk update >/dev/null 2>/dev/null; apk version | tail -n +2' >"/tmp/container-$INSTANCE.package-upgrade"
+
+                if [ ! -z "$(cat /tmp/container-$INSTANCE.package-upgrade)" ]
+                then
+                    cat /tmp/container-$INSTANCE.package-upgrade
+                    local do_alert="alert"
+                    contains "$INSTANCE" "${SILENT_DOCKER_NEEDUPGRADE[@]}" && do_alert="silent_alert"
+                    $do_alert "container $INSTANCE need upgrade (or a rebuild)"
+                fi
+
+                rm -f "/tmp/container-$INSTANCE.package-upgrade"
+
+                ;;
+            ubuntu)
+                # FIXME: should not ignore but check that container can go outside
+                abort "ignoring $INSTANCE ubuntu"
+                ;;
+            *)
+                abort "$INSTANCE is an unknown distribution ($DISTRIBUTION)"
+                ;;
+        esac
+
+
+    done
+
+    echo
+    explain "check for looping containers"
+    for INSTANCE in $(docker ps --format '{{.Names}}')
+    do
+        local RESTARTCOUNT=$(docker inspect -f '{{.RestartCount}}' $INSTANCE)
+        local STARTEDAT=$(docker inspect -f '{{.State.StartedAt}}' $INSTANCE)
+        local TS_NOW=$(date +'%s')
+        local TS_STARTEDAT=$TS_NOW # fallback
+        if [ -n "$STARTEDAT" ]
+        then
+            TS_STARTEDAT=$(date --date="$STARTEDAT" +'%s')
+        fi
+        local HOURS=$(( ($TS_NOW - $TS_STARTEDAT) / 3600 ))
+        if [ $RESTARTCOUNT -gt 5 ]
+        then
+            echo "$INSTANCE has restarted $RESTARTCOUNT times, last instance age: $HOURS hours"
+            if [ $HOURS -lt 8 ]
+            then
+                local do_alert="alert"
+                $do_alert "container $INSTANCE is restarting too many times ($RESTARTCOUNT times)"
+            fi
+        fi
+    done
+
+    explain "check for dead containers"
+    for INSTANCE in $(docker container ls -a --format "{{.Names}}" --filter "status=dead")
+    do
+        local do_alert="alert"
+        $do_alert "container $INSTANCE is dead"
+    done
+
+    explain "check for OOMKilled containers"
+    for INSTANCE in $(docker ps --filter "status=dead" --filter "status=exited" --format '{{.Names}}')
+    do
+        if [ $(docker inspect -f '{{.State.OOMKilled}}' $INSTANCE 2>/dev/null) == "true" ]
+        then
+            local do_alert="alert"
+            $do_alert "container $INSTANCE has been OOMKilled"
+        fi
+    done
+
+    explain "check for unhealthy containers"
+    for INSTANCE in $(docker container ls --format "{{.Names}}" --filter "health=unhealthy")
+    do
+        local do_alert="alert"
+        $do_alert "container $INSTANCE is unhealthy"
+    done
+}
+
+

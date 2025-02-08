@@ -1,0 +1,35 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    CHECK_IPV6="NO" # default no
+}
+
+run() {
+
+    if ( ! to_boolean $CHECK_IPV6 )
+    then
+        echo "ignore ipv6 check"
+        return
+    fi
+
+    explain "checking ipv6"
+
+    if ! which curl >/dev/null
+    then
+        alert "curl not found (fix via: apt-get install curl)"
+        return 1
+    fi
+
+    local IPV6=$(curl -s -6 https://ifconfig.me)
+
+    if [ $? != 0 ]
+    then
+        alert "ipv6 connection test failed"
+    else
+        echo "ipv6 working, outgoing IP is $IPV6"
+    fi
+
+}
+

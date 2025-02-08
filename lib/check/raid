@@ -1,0 +1,40 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    SILENT_RAID=()
+}
+
+run() {
+    if detect_virt
+    then
+        abort "this is a virtual machine, test is not relevant [ignoring test]"
+        return
+    fi
+
+    if [ ! -f '/proc/mdstat' ]
+    then
+        abort "no raid (soft) found ignore test"
+        return 0
+    fi
+
+    while read -r DEVICE ACTIVE TYPE  STATUS
+    do
+        # keep only active parition (do we need to check other state ?)
+        [ "$ACTIVE" != "active" ] && continue
+
+        local do_alert="alert"
+        contains "$DEVICE" "${SILENT_RAID[@]}" && do_alert="silent_alert"
+
+        if [[ "$STATUS" =~ ^\[U+\]$ ]]
+        then
+            echo "raid $DEVICE ($TYPE) is clean"
+        else
+            $do_alert "raid $DEVICE ($TYPE) is degraded"
+        fi
+    done < <( awk '/^md.*:/{ printf $1 " " $3 " " $4 " "; getline; print $NF}' <'/proc/mdstat')
+
+}
+
+

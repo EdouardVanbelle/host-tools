@@ -1,0 +1,20 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    MANDATORY_FILES=()
+}
+
+run() {
+
+    local FILE
+    for FILE in ${MANDATORY_FILES[@]}
+    do
+        explain "checking that $FILE exists"
+        [ -e $FILE ] || alert "$FILE does not exist, please check"
+
+    done
+}
+
+

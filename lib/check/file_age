@@ -1,0 +1,77 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    # FILES_AGE format: <file>:<expiration (in minutes)>[:options] where "r" can be an option for recursive checks
+    FILES_AGE=()
+}
+
+run() {
+
+    if [ ${#FILES_AGE[@]} == 0 ]
+    then
+        abort "no file's age to check"
+        return
+    fi
+
+    # check containers are running
+    for ELEMENT in "${FILES_AGE[@]}"
+    do
+        local FILE
+        local EXPIRES
+        local OPTIONS
+
+        FILE=$(echo "$ELEMENT" | cut -d : -f 1)
+        EXPIRES=$(echo "$ELEMENT" | cut -d : -f 2)
+        OPTIONS=$(echo "$ELEMENT" | cut -d : -f 3)
+
+
+        # force EXPIRES to 60 min if not defined
+        test -z "$EXPIRES" && EXPIRES=60
+
+        local HUMAN_EXP=$(min_to_human_display $EXPIRES)
+
+        if [ "$OPTIONS" = "r" ]
+        then
+            explain "checking recursively that $FILE has recent changes before $HUMAN_EXP"
+        else
+            explain "checking $FILE is not older than $HUMAN_EXP"
+        fi
+
+        if [ ! -e "$FILE" ]
+        then
+            alert "file $FILE is does not exist"
+            continue
+        fi
+
+        if [ "$OPTIONS" = "r" ]
+        then
+            # recursive case
+            local as_recent
+            as_recent=$(find "$FILE" -cmin -$EXPIRES -print -quit)
+
+            if [ -n "$as_recent" ]
+            then
+                echo "directory $FILE has changes younger than $HUMAN_EXP"
+            else
+                alert "directory $FILE no change found since $HUMAN_EXP"
+            fi
+
+            continue
+        fi
+
+        # classic file check
+        local NOW=$(date '+%s')
+        local FILE_AGE=$(( ( $NOW - $(stat -c '%Y' "$FILE") ) / 60 ))
+        if [ $FILE_AGE -le $EXPIRES ]
+        then
+            echo "file $FILE is less than $HUMAN_EXP"
+        else
+            local HUMAN_AGE=$( min_to_human_display $FILE_AGE )
+            alert "file $FILE is too old $HUMAN_AGE"
+        fi
+    done
+}
+
+

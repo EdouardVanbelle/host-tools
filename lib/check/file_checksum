@@ -1,0 +1,74 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    # FILES_CHECKSUM format: <file>:<checksum>[:<digest>] (where digest can be: md5 (default), sha1, sha256, sha512)
+    FILES_CHECKSUM=()
+}
+
+run() {
+
+    if [ ${#FILES_CHECKSUM[@]} == 0 ]
+    then
+        abort "no file's checksum to verify"
+        return
+    fi
+
+    local USEOPENSSL=0
+
+    if ! which md5sum >/dev/null
+    then
+        abort "md5sum and similar not present (on debian: apt-get install coreutils) [will try fallback to openssl]"
+
+        if which openssl > /dev/null
+        then
+            USEOPENSSL=1
+        else
+            abort "md5sum (coreutils) nor openssl is present, (on debian: apt-get install openssl) [ignoring test]"
+            return
+        fi
+    fi
+
+    # check containers are running
+    for ELEMENT in "${FILES_CHECKSUM[@]}"
+    do
+        local FILE=$(echo "$ELEMENT" | cut -d : -f 1)
+        local CHECKSUM=$(echo "$ELEMENT" | cut -d : -f 2)
+        local DIGEST=$(echo "$ELEMENT" | cut -d : -f 3)
+
+        if [ -z "$DIGEST" ]
+        then
+            DIGEST=md5
+        fi
+
+        if [ ! -e "$FILE" ]
+        then
+            alert "file checksum failed: $FILE does not exists"
+            continue
+        fi
+
+        if [ $USEOPENSSL -eq 0 ]
+        then
+            local BINARY=${DIGEST}sum
+            if ! which $BINARY >/dev/null
+            then
+                alert "checksum binary $BINARY not found, cannot test $FILE"
+                continue
+            fi
+
+            CURRENT_CHECKSUM=$($BINARY "$FILE" | awk '{print $1};' 2>&1)
+        else
+            # openssl fallback
+            CURRENT_CHECKSUM=$(openssl dgst -"$DIGEST" "$FILE" | awk '{print $2}' 2>&1)
+        fi
+
+        if [ $CURRENT_CHECKSUM == "$CHECKSUM" ]
+        then
+            echo "file $FILE ${DIGEST}sum success"
+        else
+            alert "file $FILE ${DIGEST}sum differs (currently '$CURRENT_CHECKSUM', was expecting '$CHECKSUM')"
+        fi
+    done
+}
+

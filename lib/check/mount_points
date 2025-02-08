@@ -1,0 +1,33 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+init() {
+    PARTITIONS=()
+}
+
+run() {
+
+    #FIXME must be dynamic
+    # check data mounted
+    local DATA
+    for DATA in ${PARTITIONS[@]}
+    do
+        # follow link if necessary
+        if [ -L $DATA ]
+        then
+            TARGET=$(readlink -f $DATA)
+            if [ -z "$TARGET" ]
+            then
+                alert "wrong symlink $DATA"
+                continue
+            fi
+            DATA=$TARGET
+        fi
+        explain "checking partition $DATA is mounted"
+
+        mountpoint -q $DATA || alert "$DATA not mounted"
+    done
+
+}
+

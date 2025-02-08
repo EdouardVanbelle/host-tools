@@ -1,0 +1,9 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+run() {
+    # FIXME: must do it
+    true
+}
+

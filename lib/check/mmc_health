@@ -1,0 +1,69 @@
+#!/bin/bash
+
+DESCRIPTION="replace me"
+
+run() {
+
+    # source: https://developer.toradex.com/linux-bsp/how-to/boot/emmc-linux/
+
+    # Device life time estimation type A: life time estimation for the MLC user partition eraseblocks, provided in steps of 10%, e.g.:
+    #   0x02 means 10%-20% device life time used.
+    # Device life time estimation type B: life time estimation for the SLC boot partition eraseblocks, provided in steps of 10%, e.g.:
+    #   0x02 means 10%-20% device life time used.
+    # Pre EOL information: overall status for reserved blocks. Possible values are:
+    #   0x00 - Not defined.
+    #   0x01 - Normal: consumed less than 80% of the reserved blocks.
+    #   0x02 - Warning: consumed 80% of the reserved blocks.
+    #   0x03 - Urgent: consumed 90% of the reserved blocks.
+
+    if detect_virt
+    then
+        abort "this is a virtual machine, test is not relevant [ignoring test]"
+        return
+    fi
+
+    if [ -z "$(find_disks mmc)" ]
+    then
+        abort "no MMC found [ignoring test]"
+        return
+    fi
+
+    if ! which mmc >/dev/null
+    then
+        abort "mmc not installed (fix: apt-get install mmc-utils) [ignoring test]"
+        return
+    fi
+
+    # foreach disk
+    local DISK EOL
+    for DISK in $( find_disks mmc)
+    do
+
+        explain "checking mmc disk $DISK"
+
+        mmc extcsd read /dev/$DISK | grep ^eMMC >/tmp/mmc.health
+
+        if [ -s /tmp/mmc.health ]
+        then
+
+            cat /tmp/mmc.health
+
+            EOL=$(grep EXT_CSD_PRE_EOL_INFO /tmp/mmc.health | sed 's/.*: 0x//')
+
+            if [ $((16#$EOL)) -gt 2 ]
+            then
+                alert "mmc disk $DISK enter in his end of life (critical status)"
+            elif [ $((16#$EOL)) -gt 1 ]
+            then
+                alert "mmc disk $DISK enter in his end of life (warning status)"
+            fi
+        else
+            abort "no eMMC information [cannot perform test]"
+        fi
+
+        rm -f /tmp/mmc.health
+
+    done
+
+}
+
