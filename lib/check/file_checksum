@@ -30,6 +30,8 @@ run() {
         fi
     fi
 
+    local RETURN=$CHECK_SUCCESS
+
     # check containers are running
     for ELEMENT in "${FILES_CHECKSUM[@]}"
     do
@@ -45,6 +47,7 @@ run() {
         if [ ! -e "$FILE" ]
         then
             alert "file checksum failed: $FILE does not exists"
+            RETURN=$(max $? $RETURN)
             continue
         fi
 
@@ -54,6 +57,7 @@ run() {
             if ! which $BINARY >/dev/null
             then
                 alert "checksum binary $BINARY not found, cannot test $FILE"
+                RETURN=$(max $? $RETURN)
                 continue
             fi
 
@@ -68,7 +72,10 @@ run() {
             echo "file $FILE ${DIGEST}sum success"
         else
             alert "file $FILE ${DIGEST}sum differs (currently '$CURRENT_CHECKSUM', was expecting '$CHECKSUM')"
+            RETURN=$(max $? $RETURN)
         fi
     done
+
+    return $RETURN
 }
 

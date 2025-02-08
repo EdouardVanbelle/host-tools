@@ -16,12 +16,15 @@ run() {
         return $CHECK_IMPOSSIBLE
     fi
 
+    local RETURN=$CHECK_SUCCESS
+
     # check that package are fully installed
     dpkg --audit > $TMPDIR/host-tools.package-audit
 
     if [ -s $TMPDIR/host-tools.package-audit ]
     then
         alert "found partial or unconfigured packages during dpkg audit"
+        RETURN=$(max $? $RETURN)
         cat $TMPDIR/host-tools.packages-audit
     fi
 
@@ -43,6 +46,7 @@ run() {
             echo "mandatory package $PACKAGE is installed"
         else
             alert "mandatory package $PACKAGE is missing"
+            RETURN=$(max $? $RETURN)
         fi
     done
 
@@ -51,10 +55,12 @@ run() {
         if grep -q "^$PACKAGE\s\+install$" $TMPDIR/host-tools.package-list
         then
             alert "forbidden package $PACKAGE must be removed/purged"
+            RETURN=$(max $? $RETURN)
         fi
     done
 
     rm -f $TMPDIR/host-tools.package-list
 
+    return $RETURN
 }
 

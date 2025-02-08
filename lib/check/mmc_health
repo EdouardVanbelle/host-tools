@@ -38,6 +38,8 @@ run() {
         return $CHECK_IMPOSSIBLE
     fi
 
+    local RETURN=$CHECK_SUCCESS
+
     # foreach disk
     local DISK EOL
     for DISK in $( find_disks mmc)
@@ -57,9 +59,11 @@ run() {
             if [ $((16#$EOL)) -gt 2 ]
             then
                 alert "mmc disk $DISK enter in his end of life (critical status)"
+                RETURN=$(max $? $RETURN)
             elif [ $((16#$EOL)) -gt 1 ]
             then
                 alert "mmc disk $DISK enter in his end of life (warning status)"
+                RETURN=$(max $? $RETURN)
             fi
         else
             abort "no eMMC information [cannot perform test]"
@@ -69,5 +73,6 @@ run() {
 
     done
 
+    return $RETURN
 }
 

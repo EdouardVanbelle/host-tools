@@ -21,7 +21,7 @@ run() {
         return $CHECK_IMPOSSIBLE
     fi
 
-    RETURN=$CHECK_SUCCESS
+    local RETURN=$CHECK_SUCCESS
 
     # FIXME add way to check certificates via starttls
     #openssl s_client -servername ... -starttls imap -crlf -connect mail....:143
@@ -83,14 +83,14 @@ run() {
         if !( echo $SSL | grep -q "DNS:$FQDN" )
         then
             alert "certificate $FQDN mismatch fqdn (proto: $PROTO, port: $PORT)"
-            RETURN=$CHECK_FAILED
+            RETURN=$(max $? $RETURN)
         fi
 
         if ( echo $SSL | grep -q "Certificate will expire" )
         then
             local EXPIRATION=$($OPENSSL </dev/null 2>/dev/null | openssl x509 -noout -enddate | cut -d '=' -f 2 | sed 's/ ..:..:../,/; s/ GMT$//;')
             alert "please renew certificate $FQDN that will expire the $EXPIRATION (less than $SSL_PREVENTION_EXPIRATION days, proto: $PROTO, port: $PORT)"
-            RETURN=$CHECK_FAILED
+            RETURN=$(max $? $RETURN)
         fi
 
     done

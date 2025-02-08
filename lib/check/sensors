@@ -16,12 +16,13 @@ run() {
        return $CHECK_IGNORED
     fi
 
-
     if ! which sensors >/dev/null
     then
        abort "sensors not present, (on debian: apt-get install lm-sensors) [ignoring test]"
        return $CHECK_IMPOSSIBLE
     fi
+
+    local RETURN=$CHECK_SUCCESS
 
     local PREV_IFS="$IFS"
     local IFS=""
@@ -81,5 +82,7 @@ run() {
 
     done < <( sensors -u )
     IFS="$PREV_IFS"
+
+    return $RETURN
 }
 

@@ -22,13 +22,13 @@ run() {
         return $CHECK_IMPOSSIBLE
     fi
 
-    RETURN=$CHECK_SUCCESS
+    local RETURN=$CHECK_SUCCESS
 
     local V6_DEFAULT_GW=$(ip -6 route show default)
     if [ -z "$V6_DEFAULT_GW" ]
     then
         alert "did not found a default ipv6 gateway"
-        RETURN=$CHECK_FAILED
+        RETURN=$(max $? $RETURN)
     else
         echo "default route is/are: $V6_DEFAULT_GW"
     fi
@@ -39,12 +39,11 @@ run() {
     if [ $? -ne 0 ]
     then
         alert "ipv6 HTTP connection test failed"
-        RETURN=$CHECK_FAILED
+        RETURN=$(max $? $RETURN)
     else
         echo "ipv6 working, outgoing IP is $IPV6"
     fi
 
-    return $CHECK_SUCCESS
-
+    return $RETURN
 }
 

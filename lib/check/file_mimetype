@@ -20,6 +20,8 @@ run() {
         return $CHECK_IMPOSSIBLE
     fi
 
+    local RETURN=$CHECK_SUCCESS
+
     # check containers are running
     local ELEMENT
     for ELEMENT in "${FILES_MIME[@]}"
@@ -30,6 +32,7 @@ run() {
         if [ ! -e "$FILE" ]
         then
             alert "file mime type failed: $FILE does not exists"
+            RETURN=$(max $? $RETURN)
             continue
         fi
 
@@ -40,8 +43,11 @@ run() {
             echo "file $FILE type is '$MIME' as expected"
         else
             alert "file $FILE type is '$CURRENT_MIME' (was expecting '$MIME')"
+            RETURN=$(max $? $RETURN)
         fi
     done
+
+    return $RETURN
 }
 
 

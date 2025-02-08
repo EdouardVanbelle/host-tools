@@ -16,12 +16,13 @@ run() {
         return $CHECK_IMPOSSIBLE
     fi
 
-    RETURN=$CHECK_SUCCESS
+    local RETURN=$CHECK_SUCCESS
 
     apt-get update >$TMPDIR/security-update.list 2>&1
     if grep -q '^[WE]:' $TMPDIR/security-update.list
     then
         alert "got warning in apt-get update"
+        RETURN=$(max $? $RETURN)
         cat $TMPDIR/security-update.list
     fi
 
@@ -30,7 +31,7 @@ run() {
     then
         grep -i security $TMPDIR/security-upgrade.list
         alert "system has security packages to upgrade"
-        RETURN=$CHECK_FAILED
+        RETURN=$(max $? $RETURN)
     fi
 
     apt-get clean >/dev/null 2>/dev/null

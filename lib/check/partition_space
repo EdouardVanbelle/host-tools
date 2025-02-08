@@ -21,6 +21,7 @@ run() {
         if [ $PCENT -ge $DISKLIMIT ]
         then
             alert "$PARTITION reached size limit: $PCENT %"
+            RETURN=$(max $? $RETURN)
         else
             echo "$PARTITION size ok ($PCENT %)"
         fi
@@ -30,7 +31,7 @@ run() {
         if [ $IPCENT -ge $DISKLIMIT ]
         then
             alert "$PARTITION reached inode size limit: $IPCENT %"
-            RETURN=$CHECK_FAILED
+            RETURN=$(max $? $RETURN)
         else
             echo "$PARTITION inode size ok ($IPCENT %)"
         fi

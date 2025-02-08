@@ -24,6 +24,8 @@ run() {
         return $CHECK_IGNORED
     fi
 
+    local RETURN=$CHECK_SUCCESS
+
     ROOT_HOME=$(getent passwd root  | cut -d ':' -f 6)
 
     local AUTHORIZED_KEY=()
@@ -49,8 +51,11 @@ run() {
         if ! ( cat "${AUTHORIZED_KEY[@]}" 2>/dev/null | grep -q ^$KEY )
         then
             alert "$SHORTKEY is missing in $AUTHORIZED_KEY"
+            RETURN=$(max $? $RETURN)
         fi
     done
     IFS=$PREV_IFS
+
+    return $RETURN
 }
 

@@ -17,6 +17,8 @@ run() {
         return $CHECK_IMPOSSIBLE
     fi
 
+    local RETURN=$CHECK_SUCCESS
+
     # -p2 = alert & crit
     if [ -z "$KERNEL_CRITICAL_IGNORE" ]
     then
@@ -30,10 +32,12 @@ run() {
     then
         cat $TMPDIR/critmsg
         alert "found critical kernel message " $(tail -n 1 $TMPDIR/critmsg)
+        RETURN=$(max $? $RETURN)
     fi
 
     rm -f $TMPDIR/critmsg
 
+    return $RETURN
 }
 
 

@@ -26,12 +26,15 @@ run() {
         return $CHECK_IMPOSSIBLE
     fi
 
+    local RETURN=$CHECK_SUCCESS
+
     for IP in ${IP_RBLCHECK[@]}
     do
         local REVERSE=$(echo $IP | sed -ne "s~^\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)$~\4.\3.\2.\1~p")
 
         if [ "x${REVERSE}" = "x" ] ; then
             alert  "IMHO '$IP' doesn't look like a valid IP address"
+            RETURN=$(max $? $RETURN)
             continue
         fi
 
@@ -57,9 +60,12 @@ run() {
                 echo "$IP is (rbl)-clean on $SERVICE"
             else
                 alert "$IP is (rbl)-listed on $SERVICE: $LISTED"
+                RETURN=$(max $? $RETURN)
             fi
         done
 
     done
+
+    return $RETURN
 }
 

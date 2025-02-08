@@ -15,6 +15,8 @@ run() {
         return $CHECK_DISABLED
     fi
 
+    local RETURN=$CHECK_SUCCESS
+
     # check containers are running
     for ELEMENT in "${FILES_AGE[@]}"
     do
@@ -42,6 +44,7 @@ run() {
         if [ ! -e "$FILE" ]
         then
             alert "file $FILE is does not exist"
+            RETURN=$(max $? $RETURN)
             continue
         fi
 
@@ -56,6 +59,7 @@ run() {
                 echo "directory $FILE has changes younger than $HUMAN_EXP"
             else
                 alert "directory $FILE no change found since $HUMAN_EXP"
+                RETURN=$(max $? $RETURN)
             fi
 
             continue
@@ -70,8 +74,11 @@ run() {
         else
             local HUMAN_AGE=$( min_to_human_display $FILE_AGE )
             alert "file $FILE is too old $HUMAN_AGE"
+            RETURN=$(max $? $RETURN)
         fi
     done
+
+    return $RETURN
 }
 
 

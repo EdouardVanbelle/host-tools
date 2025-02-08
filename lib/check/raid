@@ -35,9 +35,11 @@ run() {
             echo "raid $DEVICE ($TYPE) is clean"
         else
             $do_alert "raid $DEVICE ($TYPE) is degraded"
+            RETURN=$(max $? $RETURN)
         fi
     done < <( awk '/^md.*:/{ printf $1 " " $3 " " $4 " "; getline; print $NF}' <'/proc/mdstat')
 
+    return $RETURN
 }
 
 

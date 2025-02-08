@@ -13,6 +13,8 @@ run() {
         return $CHECK_DISABLED
     fi
 
+    local RETURN=$CHECK_SUCCESS
+
     # check data mounted
     local DATA
     for DATA in ${PARTITIONS[@]}
@@ -24,14 +26,20 @@ run() {
             if [ -z "$TARGET" ]
             then
                 alert "wrong symlink $DATA"
+                RETURN=$(max $? $RETURN)
                 continue
             fi
             DATA=$TARGET
         fi
         explain "checking partition $DATA is mounted"
 
-        mountpoint -q $DATA || alert "$DATA not mounted"
+        if ! mountpoint -q $DATA
+        then
+            alert "$DATA not mounted"
+            RETURN=$(max $? $RETURN)
+        fi
     done
 
+    return $RETURN
 }
 

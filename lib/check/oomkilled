@@ -40,7 +40,7 @@ run() {
     then
         cat $TMPDIR/oom.list
         alert "found out of memory processes " $(tail -n 1 $TMPDIR/oom.list)
-        RETURN=$CHECK_FAILED
+        RETURN=$(max $? $RETURN)
     fi
 
     rm -f $TMPDIR/oom.list

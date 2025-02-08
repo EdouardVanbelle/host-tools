@@ -21,6 +21,8 @@ run() {
         return $CHECK_IGNORED
     fi
 
+    local RETURN=$CHECK_SUCCESS
+
     local DEVICE
     local current=$(pwd)
     cd /sys/class/net
@@ -58,6 +60,7 @@ run() {
         ]
         then
             alert "device $DEVICE has communication errors ($TX_ERROR TX err, $RX_ERROR RX err, $COLLISION collisions)"
+            RETURN=$(max $? $RETURN)
         else
             echo "device $DEVICE is in good health: no new error ($TX_ERROR Tx err, $RX_ERROR RX err, $COLLISION collisions)"
         fi
@@ -65,5 +68,7 @@ run() {
     done
 
     cd $current
+
+    return $RETURN
 }
 

@@ -28,6 +28,8 @@ run() {
         return $CHECK_IMPOSSIBLE
     fi
 
+    local RETURN=$CHECK_SUCCESS
+
     #if which lshw >/dev/null
     #then
     #       # disk list
@@ -99,7 +101,11 @@ run() {
                 "5")
                     #id=5 "Reallocated_Sector_Ct" (bad for HD and SSD)
                     echo "INFO: Reallocated Sector Count: $RAW_VALUE"
-                    [ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE bad sectors";
+                    if [ $RAW_VALUE -gt $BADSECTORLIMIT ]
+                    then
+                        $do_alert "$DISK has $RAW_VALUE bad sectors";
+                        RETURN=$(max $? $RETURN)
+                    fi
                     ;;
                 "7")
                     #id=5 "Spin_Retry_Count" (bad for HD)
@@ -111,21 +117,33 @@ run() {
                 "187")
                     #id=187 "Reported Uncorrectable Errors"    (bad SSD)
                     echo "INFO: Reported Uncorrectable Errors: $RAW_VALUE"
-                    [ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE uncorrectable errors";
+                    if [ $RAW_VALUE -gt $BADSECTORLIMIT ]
+                    then
+                        $do_alert "$DISK has $RAW_VALUE uncorrectable errors";
+                        RETURN=$(max $? $RETURN)
+                    fi
                     ;;
 
                 "188")
                     #id=188 "Command Timeout"
                                         RAW_VALUE="${RAW_VALUE%% *}" # remove all YY in "XX YY"
                     echo "INFO: Reported command timeout: $RAW_VALUE"
-                    [ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE command timeout";
+                    if [ $RAW_VALUE -gt $BADSECTORLIMIT ]
+                    then
+                        $do_alert "$DISK has $RAW_VALUE command timeout";
+                        RETURN=$(max $? $RETURN)
+                    fi
                     ;;
 
                 "194")
                     #id=194 Temperature_Celsius
                                         RAW_VALUE="${RAW_VALUE%% *}" # remove all YY in "XX YY"
                     echo "INFO: Temperature Celsius: $RAW_VALUE"
-                    [ $RAW_VALUE -gt $BADTEMPLIMIT ] && $do_alert "$DISK has temperature $RAW_VALUE too high";
+                    if [ $RAW_VALUE -gt $BADTEMPLIMIT ]
+                    then
+                        $do_alert "$DISK has temperature $RAW_VALUE too high";
+                        RETURN=$(max $? $RETURN)
+                    fi
                     ;;
 
                 "196")
@@ -136,7 +154,11 @@ run() {
                 "197")
                     #id=197 "Current_Pending_Sector"
                     echo "INFO: Current Pending Sector: $RAW_VALUE"
-                    [ $RAW_VALUE -gt $BADSECTORLIMIT ] && $do_alert "$DISK has $RAW_VALUE coming bad sectors";
+                    if [ $RAW_VALUE -gt $BADSECTORLIMIT ]
+                    then
+                        $do_alert "$DISK has $RAW_VALUE coming bad sectors";
+                        RETURN=$(max $? $RETURN)
+                    fi
                     ;;
 
                 "201")
@@ -151,5 +173,7 @@ run() {
 
         done < <( smartctl -A /dev/$DISK 2>/dev/null )
     done
+
+    return $RETURN
 }
 

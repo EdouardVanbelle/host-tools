@@ -17,6 +17,8 @@ run() {
         return $CHECK_IMPOSSIBLE
     fi
 
+    local RETURN=$CHECK_SUCCESS
+
     # example of output
     # networking.service loaded    failed failed Raise network interfaces
     # ureadahead.service not-found failed failed ureadahead.service
@@ -27,6 +29,7 @@ run() {
         contains "$SERVICE" "${SILENT_SERVICES[@]}" && do_alert=silent_alert
 
         $do_alert "service $SERVICE warning (loaded=$LOAD active=$ACTIVE run=$RUN)"
+        RETURN=$(max $? $RETURN)
 
     done < <( systemctl --state=failed  --no-pager --no-legend list-units )
 
@@ -36,13 +39,17 @@ run() {
             if [ "$_S" == "" ]
             then
                 alert "mandatory service $SERVICE not running (not found)"
+                RETURN=$(max $? $RETURN)
             elif [ "$RUN" != "running" ]
             then
                 alert "mandatory service $SERVICE not running (loaded=$LOAD active=$ACTIVE run=$RUN)"
+                RETURN=$(max $? $RETURN)
             else
                 echo "mandatory service $SERVICE is running"
             fi
         }
     done
+
+    return $RETURN
 }
 

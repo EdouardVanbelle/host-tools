@@ -234,6 +234,15 @@ contains() {
     return 1
 }
 
+max() {
+    if [ $1 -gt $2 ]
+    then
+        echo $1
+    else
+        echo $2
+    fi
+}
+
 explain() {
     echo -e "${ESC_WHI}$*" $ESC_RST
 }
@@ -247,11 +256,15 @@ alert() {
     logger -p user.crit -t "$SCRIPTNAME" -- "$*"
     echo -e "${ESC_RED}ALERT:" "$*" $ESC_RST
     echo "$*" >>$REPORT
+
+    return $CHECK_FAILED
 }
 
 silent_alert() {
     echo -e "${ESC_YEL}SILENT ALERT:" "$*" $ESC_RST
     echo "@silent" "$*" >>$REPORT
+
+    return $CHECK_WARNING
 }
 
 to_boolean() {

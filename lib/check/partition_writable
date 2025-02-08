@@ -20,13 +20,13 @@ run() {
         if ! mountpoint -q $PARTITION
         then
             alert "$PARTITION is not a partition..."
-            RETURN=$CHECK_FAILED
+            RETURN=$(max $? $RETURN)
         fi
 
         if ! touch $PARTITION/.host-tool-check 2>/dev/null
         then
             alert "$PARTITION is not a writable"
-            RETURN=$CHECK_FAILED
+            RETURN=$(max $? $RETURN)
         else
             echo "$PARTITION is writable"
         fi

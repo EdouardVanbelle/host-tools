@@ -30,6 +30,8 @@ run() {
         return $CHECK_IMPOSSIBLE
     fi
 
+    local RETURN=$CHECK_SUCCESS
+
     local NOW=$(date +'%s')
 
     test -d "$VARDIR/cache" || mkdir "$VARDIR/cache"
@@ -72,6 +74,7 @@ run() {
         then
             echo "using cache $CACHE"
             do_alert="silent_alert"
+            RETURN=$(max $? $RETURN)
         else
             echo "fetching $URL to $CACHE"
             curl -s -H 'User-Agent: host-tools' -H 'Accept: application/vnd.github+json' $URL > $CACHE
@@ -82,6 +85,7 @@ run() {
         if [ "$ERROR" != "null" ]
         then
             $do_alert "github check $OWNER/$REPO: error reading api: $ERROR"
+            RETURN=$(max $? $RETURN)
             rm -f $CACHE
             continue
         fi
@@ -91,16 +95,20 @@ run() {
         if [ -z "$RELEASE" ]
         then
             $do_alert "github check $OWNER/$REPO: unable to parse $CACHE"
+            RETURN=$(max $? $RETURN)
             continue
         fi
 
         if [ "$CURRENT_RELEASE" != "$RELEASE" ]
         then
             $do_alert "github $OWNER/$REPO release $RELEASE is available (current=$CURRENT_RELEASE)"
+            RETURN=$(max $? $RETURN)
             continue
         fi
 
         echo "github $OWNER/$REPO release match ($RELEASE)"
     done
+
+    return $RETURN
 }
 
