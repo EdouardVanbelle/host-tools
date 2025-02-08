@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="check mandatory services"
 
 init() {
     MANDATORY_SERVICES=("ssh.service")
@@ -20,6 +20,7 @@ run() {
     # example of output
     # networking.service loaded    failed failed Raise network interfaces
     # ureadahead.service not-found failed failed ureadahead.service
+    local SERVICE LOAD ACTIVE RUN DESCRIPTION
     while read -r SERVICE LOAD ACTIVE RUN DESCRIPTION
     do
         local do_alert="alert"

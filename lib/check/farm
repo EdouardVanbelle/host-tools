@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="ping check on hosts list"
 
 init() {
     DOMAIN=""

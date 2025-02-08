@@ -1,12 +1,17 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="check specified file existance"
 
 init() {
     MANDATORY_FILES=()
 }
 
 run() {
+    if [ ${#MANDATORY_FILES[@]} == 0 ]
+    then
+        abort "no imandatory file to check"
+        return
+    fi
 
     local FILE
     for FILE in ${MANDATORY_FILES[@]}

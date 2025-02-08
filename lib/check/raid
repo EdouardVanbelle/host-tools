@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="check soft raid consistency"
 
 init() {
     SILENT_RAID=()
@@ -19,7 +19,8 @@ run() {
         return 0
     fi
 
-    while read -r DEVICE ACTIVE TYPE  STATUS
+    local DEVICE ACTIVE TYPE STATUS
+    while read -r DEVICE ACTIVE TYPE STATUS
     do
         # keep only active parition (do we need to check other state ?)
         [ "$ACTIVE" != "active" ] && continue

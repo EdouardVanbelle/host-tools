@@ -1,14 +1,18 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="ensure specified partition mount"
 
 init() {
     PARTITIONS=()
 }
 
 run() {
+    if [ ${#PARTITIONS[@]} == 0 ]
+    then
+        abort "no mount point to check"
+        return
+    fi
 
-    #FIXME must be dynamic
     # check data mounted
     local DATA
     for DATA in ${PARTITIONS[@]}

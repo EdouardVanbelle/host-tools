@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="check volume remaining space"
 
 init() {
     DISKLIMIT=75
@@ -8,6 +8,7 @@ init() {
 
 run() {
 
+    local PARTITION FSTYPE IPCENT PCENT
     while read -r PARTITION FSTYPE IPCENT PCENT
     do
         IPCENT=${IPCENT%?}

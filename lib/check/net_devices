@@ -1,6 +1,10 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="verify network errors, collisions"
+
+init() {
+    return 0
+}
 
 run() {
     echo checking network devices

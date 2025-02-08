@@ -2,6 +2,10 @@
 
 DESCRIPTION="check load avg in 15min"
 
+init() {
+    return 0
+}
+
 run() {
 
     explain "check load avg in 15min"

@@ -415,6 +415,10 @@ find_disks() {
 
 # ---------------------------------------- checks
 
+declare -A MODULE_DESCRIPTION
+declare -A MODULE_ENABLED
+declare -A MODULE_INIT
+
 load_module() {
 
     # load test
@@ -429,7 +433,7 @@ load_module() {
     then
         echo "module $MODULE: missing DESCRIPTION variable"
     fi
-    eval "${MODULE}_DESCRIPTION='$DESCRIPTION'"
+    MODULE_DESCRIPTION[$MODULE]="$DESCRIPTION"
 
     for FUNC in run
     do
@@ -448,11 +452,16 @@ load_module() {
     done
 
     # initialise module
-    if declare -f init >/dev/null
+    if ! declare -f init >/dev/null
     then
-        init
-        unset -f init
+        echo "module $MODULE: is missing init() function"
+        exit 1
     fi
+
+    #MODULE_INIT[$MODULE]=$(init)
+    init
+    MODULE_ENABLED[$MODULE]=$?
+    unset -f init
 
     # DEBUG echo "$MODULE loaded: ${DESCRIPTION}"
     unset -v DESCRIPTION
@@ -465,7 +474,12 @@ cmd_check_list() {
     # execute all check_* functions
     for CHECK in $(compgen -A function | grep ^check_ | sort)
     do
-        echo $CHECK
+        MODULE=${CHECK#check_}
+        printf '\t%30s\t%d\t%s\n' "$CHECK" "${MODULE_ENABLED[$MODULE]}" "${MODULE_DESCRIPTION[$MODULE]}"
+        #if [ ${MODULE_ENABLED[$MODULE]} -ne 0 ]
+        #then
+        #    printf '\t%30s\t%s\n' "" "${MODULE_INIT[$MODULE]}"
+        #fi
     done
 }
 
@@ -513,7 +527,7 @@ cmd_full_check() {
 
 }
 
-# FIXME: depends on a variable from a module
+# FIXME: depends on a variable from a module, should be moved into this module
 cmd_install_packages() {
 
     lock || return 1

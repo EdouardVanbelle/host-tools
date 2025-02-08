@@ -1,6 +1,10 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="check reboot required"
+
+init() {
+    return 0
+}
 
 run() {
     if [ \( -f "$RUNDIR/reboot-required" \) -o \( -f "$RUNDIR/reboot-required.pkgs" \) ]

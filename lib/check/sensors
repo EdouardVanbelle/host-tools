@@ -1,6 +1,10 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="check sensor levels"
+
+init() {
+    return 0
+}
 
 run() {
 

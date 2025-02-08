@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DESCRIPTION="replace me"
+DESCRIPTION="perform http checks on specified url"
 
 init() {
     HTTP_CHECKS=()
