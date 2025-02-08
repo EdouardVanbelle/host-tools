@@ -56,7 +56,31 @@ CHECK_IGNORED=253
 CHECK_IMPOSSIBLE=254
 CHECK_DISABLED=255
 
-
+display_return_code() {
+    case $1 in
+        $CHECK_SUCCESS)
+            echo "🟢 success"
+            ;;
+        $CHECK_WARNING)
+            echo "🟠 warning"
+            ;;
+        $CHECK_FAILED)
+            echo "🔴 failed"
+            ;;
+        $CHECK_IGNORED)
+            echo "❌ ignored"
+            ;;
+        $CHECK_IMPOSSIBLE)
+            echo "🔥 impossible"
+            ;;
+        $CHECK_DISABLED)
+            echo "🚫 disabled"
+            ;;
+        *)
+            echo "$1 unknown"
+            ;;
+    esac
+}
 
 # purpose is to detect if we are on a virtual machine (some tests are not relevant on VM)
 detect_virt() {
@@ -512,11 +536,18 @@ cmd_full_check() {
 
     test -e $REPORT && mv $REPORT $REPORT.prev
 
+    local TOTAL=$(compgen -A function | grep ^check_ | wc -l)
+    local COUNT=0
+    local POS
+
     # execute all check_* functions
     for CHECK in $(compgen -A function | grep ^check_ | sort)
     do
-        echo -e "$ESC_CYA== $CHECK ==$ESC_RST"
+        COUNT=$(( $COUNT + 1 ))
+        POS=$(printf '%02d/%02d' $COUNT $TOTAL)
+        echo -e "$ESC_CYA[$POS] +++ $CHECK...$ESC_RST"
         $CHECK
+        echo -e "$ESC_CYA[$POS] --- $CHECK: $(display_return_code $?)$ESC_RST"
         echo
     done
 
@@ -761,6 +792,11 @@ do
                 COMMAND_FOUND=1
                 shift
                 $COMMAND "$@"
+                ANSWER=$?
+                if [[ $COMMAND =~ ^check ]]
+                then
+                    echo return code: $ANSWER
+                fi
             else
                 echo "command $1 not recognized"
             fi

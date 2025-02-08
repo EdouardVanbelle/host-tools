@@ -6,6 +6,28 @@ init() {
     return 0
 }
 
+sensor_check() {
+    local NAME="$1"
+    local INPUT=$2
+    local MAX=$3
+
+    if [ -z "$MAX" ]
+    then
+        echo "sensor '$NAME' seems ok ($INPUT without MAX value)"
+        return
+    fi
+
+    if [ $INPUT -ge $MAX ]
+    then
+        alert "sensor '$NAME' has reached the max value ($INPUT > $MAX)"
+        return $?
+    fi
+
+    echo "sensor '$NAME' is ok ($INPUT < $MAX)"
+    return $CHECK_SUCCESS
+}
+
+
 run() {
 
     explain "checking sensors (like temperature)"
@@ -41,6 +63,7 @@ run() {
                     MAX=80
                 fi
                 sensor_check "$NAME" $INPUT $MAX
+                RETURN=$(max $? $RETURN)
             fi
 
             # clean values for next reading
@@ -73,6 +96,7 @@ run() {
         if [ -n "$NAME" ] && [ -n "$INPUT" ] && [ -n "$MAX" ]
         then
             sensor_check "$NAME" $INPUT $MAX
+            RETURN=$(max $? $RETURN)
 
             # clean values for next reading
             NAME=""
