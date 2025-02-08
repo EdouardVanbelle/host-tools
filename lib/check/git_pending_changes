@@ -1,0 +1,91 @@
+#!/bin/bash
+
+DESCRIPTION="check for pending git change on a given directory"
+
+init() {
+    GIT_DIRECTORIES=()
+    return 0
+}
+
+run() {
+
+    if [ ${#GIT_DIRECTORIES[@]} -eq 0 ]
+    then
+        abort "no git repository to check"
+        return $CHECK_DISABLED
+    fi
+
+    if ! which git >/dev/null
+    then
+        abort "command git is missing"
+        return $CHECK_IMPOSSIBLE
+    fi
+
+    local RETURN=$CHECK_SUCCESS
+
+    local OLD_PWD=$PWD
+    local GIT_DIR DELTA BRANCH
+    for GIT_DIR in ${GIT_DIRECTORIES[@]}
+    do
+        cd $GIT_DIR
+
+        explain "checking pending changes on $GIT_DIR"
+
+        BRANCH=$(git name-rev --name-only $(git rev-parse HEAD))
+        echo "  current branch $BRANCH"
+
+        # get the tracking branch
+        TRACKING=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)
+
+        # FIXME could invoque a git fetch to refresh remote, but it must be done in the same user as the .git owner
+        if [ -z "$TRACKING" ]
+        then
+            echo "  no tracking branch"
+        else
+            echo "  tracking branch $TRACKING"
+            read BEHIND AHEAD <<< $(git rev-list --left-right --count $TRACKING..$BRANCH)
+            if [ \( $BEHIND -ne 0 \) -o \( $AHEAD -ne 0 \) ]
+            then
+                alert "$GIT_DIR branch $BRANCH is $BEHIND commit(s) behind and $AHEAD commit(s) ahead from $TRACKING"
+                RETURN=$(max $? $RETURN)
+            fi
+        fi
+
+        DELTA="$(git status -s -uno | head -n 5)"
+
+        if [ ! -z "$DELTA" ]
+        then
+            alert "$GIT_DIR has tracked files with pending changed\n$DELTA\n..."
+            RETURN=$(max $? $RETURN)
+            echo
+            continue
+        else
+            DELTA="$(git status -s | head -n 5)"
+            if [ ! -z "$DELTA" ]
+            then
+                silent_alert "$GIT_DIR has untracked files\n$DELTA\n..."
+                RETURN=$(max $? $RETURN)
+                echo
+                continue
+            fi
+        fi
+
+        echo "$GIT_DIR is clean"
+        echo
+    done
+
+    cd $OLD_PWD
+
+    # check if branch is out of date:
+    # returns number commits behind and number of commit above
+    # git rev-list --left-right --count v1-pre-release..master
+
+    # check if a commit is on a tag
+    # git name-rev --tags --name-only $(git rev-parse HEAD)
+
+    # get the current branch name
+    # git name-rev --name-only $(git rev-parse HEAD)
+
+    return $RETURN
+
+}
