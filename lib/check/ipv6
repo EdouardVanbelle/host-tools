@@ -22,14 +22,29 @@ run() {
         return $CHECK_IMPOSSIBLE
     fi
 
-    local IPV6=$(curl -s -6 https://ifconfig.me)
+    RETURN=$CHECK_SUCCESS
 
-    if [ $? != 0 ]
+    local V6_DEFAULT_GW=$(ip -6 route show default)
+    if [ -z "$V6_DEFAULT_GW" ]
     then
-        alert "ipv6 connection test failed"
+        alert "did not found a default ipv6 gateway"
+        RETURN=$CHECK_FAILED
+    else
+        echo "default route is/are: $V6_DEFAULT_GW"
+    fi
+
+    local IPV6
+    IPV6=$(curl -s -6 https://ifconfig.me)
+
+    if [ $? -ne 0 ]
+    then
+        alert "ipv6 HTTP connection test failed"
+        RETURN=$CHECK_FAILED
     else
         echo "ipv6 working, outgoing IP is $IPV6"
     fi
+
+    return $CHECK_SUCCESS
 
 }
 
