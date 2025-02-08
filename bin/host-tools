@@ -450,12 +450,11 @@ load_module() {
     # initialise module
     if declare -f init >/dev/null
     then
-        echo initializing module $MODULE
         init
         unset -f init
     fi
 
-    echo "$MODULE loaded: ${DESCRIPTION}"
+    # DEBUG echo "$MODULE loaded: ${DESCRIPTION}"
     unset -v DESCRIPTION
 }
 
@@ -663,6 +662,7 @@ EOF
 
 # ------------------------------------------------------ main
 
+# Important: modules must be init before Config
 for MODULE in $BASEDIR/lib/check/*
 do
     load_module $MODULE check
