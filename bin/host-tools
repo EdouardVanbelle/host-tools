@@ -663,9 +663,13 @@ EOF
 # ------------------------------------------------------ main
 
 # Important: modules must be init before Config
-for MODULE in $BASEDIR/lib/check/*
+for DIR in  $BASEDIR/lib/check $BASEDIR/lib/host-tools/check
 do
-    load_module $MODULE check
+    test -d $DIR || continue
+    for MODULE in $DIR/*
+    do
+        load_module $MODULE check
+    done
 done
 
 if [ "$UID" != "0" ]

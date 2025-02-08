@@ -6,7 +6,6 @@ init() {
     GITHUB_RELEASES=()
     # FIXME: rename it as github as no more exclusibity
     GITHUB_CACHE_TTL=7
-    echo "init ok"
 }
 
 run() {

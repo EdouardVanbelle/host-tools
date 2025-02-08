@@ -8,6 +8,9 @@ cp $SOURCE/etc/update-motd.d_host-99-host-tools /etc/update-motd.d/99-host-tools
 # TODO: add snapshot
 for SCRIPT in host-tools net-4g-stick snapshot
 do
-	cp $SOURCE/bin/$SCRIPT $TARGET/sbin/$SCRIPT
+    cp $SOURCE/bin/$SCRIPT $TARGET/sbin/$SCRIPT
 done
+
+test -d $TARGET/lib/host-tools/check || mkdir -p $TARGET/lib/host-tools/check
+cp -a $SOURCE/lib/check/* $TARGET/lib/host-tools/check
 
