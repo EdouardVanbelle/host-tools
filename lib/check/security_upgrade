@@ -27,10 +27,10 @@ run() {
     fi
 
     apt-get upgrade -s >$TMPDIR/security-upgrade.list 2>&1
-    if grep -i security $TMPDIR/security-upgrade.list
+    if grep -q -i security $TMPDIR/security-upgrade.list
     then
-        grep -i security $TMPDIR/security-upgrade.list
-        alert "system has security packages to upgrade"
+        LIST="$(grep -i security $TMPDIR/security-upgrade.list | grep ^Inst | awk '{print "  " $2}')"
+        alert "system has security packages to upgrade\n$LIST"
         RETURN=$(max $? $RETURN)
     fi
 
