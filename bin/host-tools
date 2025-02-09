@@ -279,14 +279,14 @@ alert() {
     ALARM=1
     logger -p user.crit -t "$SCRIPTNAME" -- "$*"
     echo -e "${ESC_RED}ALERT:" "$*" $ESC_RST
-    echo "$*" >>$REPORT
+    echo -e "$*" >>$REPORT
 
     return $CHECK_FAILED
 }
 
 silent_alert() {
     echo -e "${ESC_YEL}SILENT ALERT:" "$*" $ESC_RST
-    echo "@silent" "$*" >>$REPORT
+    echo -e "$*" | sed 's/^/@silent /' >>$REPORT
 
     return $CHECK_WARNING
 }
