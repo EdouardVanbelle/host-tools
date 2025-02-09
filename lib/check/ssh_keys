@@ -1,0 +1,176 @@
+#!/bin/bash
+
+DESCRIPTION="controls ssh public and private keys including authorized keys"
+
+init() {
+    SSH_ALLOWED_UNPROTECTED_KEYS=()
+}
+
+##
+#
+# check keys are crypted
+# for F in $(grep -l "BEGIN OPENSSH PRIVATE KEY" *); do echo -n "$F: "; grep -v -- '^----' $F | base64 -d | head -c 40 | tr -c '[:print:]' ' '; echo; done
+#
+# if crypted:
+# /root/.ssh/id_rsa_tun: openssh-key-v1     aes256-ctr    bcrypt
+# if clear:
+# /root/.ssh/id_rsa_tun: openssh-key-v1     none    none
+
+ssh_check_public_Key() {
+    local KEY=$1
+    local MINKEY
+
+    IFS="$OLDIFS"
+    read -r SIZE SIGN NAME TYPE <<< $(echo "$KEY" | ssh-keygen -l -f -)
+
+    if [[ $SIGN =~ ^SHA1 ]]
+    then
+        echo "key is in sha1, this is too weak"
+        return 1
+    fi
+
+    case $TYPE in
+        "(RSA)")
+            MINSIZE=4096
+            ;;
+        "(ED25519)")
+            MINSIZE=256
+            ;;
+        *)
+            MINSIZE=4096
+            ;;
+    esac
+
+    if [ $SIZE -lt $MINSIZE ]
+    then
+        echo "key is too small (size: $SIZE)"
+        return 1
+    fi
+
+    return 0
+}
+
+run() {
+
+    local RETURN=$CHECK_SUCCESS
+    local CURRENT_USER IGNORED NAME CUID CGID CURRENT_USER_HOME CURRENT_USER_SHELL
+    local PRIVKEY PUBKEY OLDIFS COUNT_KEYS KEY PARAMS
+
+    OLDIFS="$IFS"
+    while IFS=":" read -r CURRENT_USER IGNORED NAME CUID CGID CURRENT_USER_HOME CURRENT_USER_SHELL
+    do
+
+        IFS="$OLDIFS"
+
+        if [ -z "$CURRENT_USER_SHELL" ] || [[ "$CURRENT_USER_SHELL" =~ nologin ]] || [[ "$CURRENT_USER_SHELL" =~ "false" ]]
+        then
+            # non login shell, user disabled
+            continue
+        fi
+
+        echo
+        explain "checking active user $CURRENT_USER, home is $CURRENT_USER_HOME"
+
+        if [ ! -e $CURRENT_USER_HOME/.ssh ]
+        then
+            echo "$CURRENT_USER does not have a \$HOME/.ssh path, ignoring"
+            continue
+        fi
+
+        # check
+        for AUTHORIZED_KEY in $CURRENT_USER_HOME/.ssh/authorized_keys $CURRENT_USER_HOME/.ssh/authorized_keys2
+        do
+            [ -e $AUTHORIZED_KEY ] || continue
+
+            echo Scanning $AUTHORIZED_KEY
+
+            while read -r LINE
+            do
+                KEY=$(echo $LINE | sed 's/^.*[[:space:]]\+ssh-/ssh-/')
+                PARAMS=$(echo $LINE |sed 's/[[:space:]]*ssh-.*//')
+
+                # FIXME: check params
+
+                read IGNORED IGNORED KEY_NAME <<< "$KEY"
+
+                CHECK=$(ssh_check_public_Key "$KEY")
+
+                if [ ! -z "$CHECK" ]
+                then
+                    alert "ssh public key $KEY_NAME in $AUTHORIZED_KEY is weak: $CHECK"
+                    RETURN=$(max $? $RETURN)
+                else
+                    echo "ssh public key $KEY_NAME in $AUTHORIZED_KEY seems clean"
+                fi
+
+            done < <(grep -v -E '(^#|^[[:space:]]*$)' $AUTHORIZED_KEY)
+
+        done
+
+        COUNT_KEYS=0
+        for PRIVKEY in $(grep -l -E "BEGIN (RSA|OPENSSH) PRIVATE KEY" $CURRENT_USER_HOME/.ssh/*)
+        do
+            COUNT_KEYS=$(( $COUNT_KEYS + 1 ))
+
+            PUBKEY=$(ssh-keygen -y -P "this is an incorrect passphrase :)" -f $PRIVKEY 2>&1)
+
+            if [ $? -eq 0 ]
+            then
+                if [[ $PUBKEY =~ ^ssh ]]
+                then
+                    if contains "$PRIVKEY" "${SSH_ALLOWED_UNPROTECTED_KEYS[@]}"
+                    then
+                        echo "ssh private key $PRIVKEY is authorized to be non protected"
+                    else
+                        alert "ssh private key $PRIVKEY is not pasword protected"
+                        RETURN=$(max $? $RETURN)
+                    fi
+                else
+                    alert "ssh public key issed from $PRIVKEY unrecognized"
+                    RETURN=$(max $? $RETURN)
+                fi
+                continue
+            fi
+
+            # got an error
+            if [[ $PUBKEY =~ "incorrect passphrase" ]]
+            then
+                echo "ssh private key $PRIVKEY is password protected"
+                continue
+            fi
+
+            alert "error reading private key: $PUBKEY"
+            RETURN=$(max $? $RETURN)
+
+        done
+
+        if [ $COUNT_KEYS -eq 0 ]
+        then
+            echo "no private key found"
+            continue
+        fi
+
+        for PUBKEY in $CURRENT_USER_HOME/.ssh/*.pub
+        do
+
+            # TODO
+            KEY=$(cat "$PUBKEY")
+            CHECK=$(ssh_check_public_Key "$KEY")
+
+            if [ ! -z "$CHECK" ]
+            then
+                alert "ssh public key from $PUBKEY is weak: $CHECK"
+                RETURN=$(max $? $RETURN)
+            fi
+
+            echo "ssh public key from $PUBKEY seems correct"
+
+        done
+
+    done < <(getent passwd)
+
+    IFS="$OLDIFS"
+
+    return $RETURN
+}
+
