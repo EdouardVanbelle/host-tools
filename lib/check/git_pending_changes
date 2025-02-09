@@ -40,6 +40,7 @@ run() {
             continue
         fi
 
+        # other possibility: git branch --show-current
         BRANCH=$(git name-rev --name-only $COMMIT)
         echo "  current branch $BRANCH"
 
@@ -61,10 +62,10 @@ run() {
                 su $OWNER -s /bin/sh -c "git fetch $REMOTE"
             fi
 
-            read BEHIND AHEAD <<< $(git rev-list --left-right --count $TRACKING..$BRANCH)
-            if [ \( $BEHIND -ne 0 \) -o \( $AHEAD -ne 0 \) ]
+            AHEAD_BEHIND="$(git for-each-ref --format="%(push:track)" refs/heads/$BRANCH )"
+            if [ ! -z "$AHEAD_BEHIND" ]
             then
-                alert "git dir $GIT_DIR branch $BRANCH is $BEHIND commit(s) behind and $AHEAD commit(s) ahead from $TRACKING"
+                alert "git dir $GIT_DIR branch $BRANCH differs $AHEAD_BEHIND from $TRACKING"
                 RETURN=$(max $? $RETURN)
             fi
         fi
