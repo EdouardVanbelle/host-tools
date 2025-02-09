@@ -70,7 +70,7 @@ run() {
                 ;;
         esac
 
-        explain "checking TLS on $PROTO for $FQDN port $PORT"
+        explain "checking TLS with protocol $PROTO on $FQDN port $PORT"
 
         local SSL
         if [ -z "$CMD" ]

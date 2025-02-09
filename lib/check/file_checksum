@@ -31,18 +31,18 @@ run() {
     fi
 
     local RETURN=$CHECK_SUCCESS
+    local FILE CHECKSUM DIGEST IGNORED CURRENT_CHECKSUM
 
     # check containers are running
     for ELEMENT in "${FILES_CHECKSUM[@]}"
     do
-        local FILE=$(echo "$ELEMENT" | cut -d : -f 1)
-        local CHECKSUM=$(echo "$ELEMENT" | cut -d : -f 2)
-        local DIGEST=$(echo "$ELEMENT" | cut -d : -f 3)
 
-        if [ -z "$DIGEST" ]
-        then
-            DIGEST=md5
-        fi
+        OLDIFS="$IFS"
+        IFS=":"
+        read FILE CHECKSUM DIGEST <<< "$ELEMENT"
+        IFS="$OLDIFS"
+
+        DIGEST=${DIGEST:-md5}
 
         if [ ! -e "$FILE" ]
         then
@@ -61,10 +61,10 @@ run() {
                 continue
             fi
 
-            CURRENT_CHECKSUM=$($BINARY "$FILE" | awk '{print $1};' 2>&1)
+            read CURRENT_CHECKSUM IGNORED <<< $($BINARY "$FILE" 2>&1)
         else
             # openssl fallback
-            CURRENT_CHECKSUM=$(openssl dgst -"$DIGEST" "$FILE" | awk '{print $2}' 2>&1)
+            read IGNORED CURRENT_CHECKSUM <<< $(openssl dgst -"$DIGEST" "$FILE" 2>&1)
         fi
 
         if [ $CURRENT_CHECKSUM == "$CHECKSUM" ]

@@ -16,18 +16,16 @@ run() {
     fi
 
     local RETURN=$CHECK_SUCCESS
+    local FILE EXPIRES OPTIONS
 
     # check containers are running
     for ELEMENT in "${FILES_AGE[@]}"
     do
-        local FILE
-        local EXPIRES
-        local OPTIONS
 
-        FILE=$(echo "$ELEMENT" | cut -d : -f 1)
-        EXPIRES=$(echo "$ELEMENT" | cut -d : -f 2)
-        OPTIONS=$(echo "$ELEMENT" | cut -d : -f 3)
-
+        OLDIFS="$IFS"
+        IFS=":"
+        read FILE EXPIRES OPTIONS <<< "$ELEMENT"
+        IFS="$OLDIFS"
 
         # force EXPIRES to 60 min if not defined
         test -z "$EXPIRES" && EXPIRES=60

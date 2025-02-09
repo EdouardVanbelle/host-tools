@@ -21,13 +21,16 @@ run() {
     fi
 
     local RETURN=$CHECK_SUCCESS
+    local FILE MIME
 
     # check containers are running
     local ELEMENT
     for ELEMENT in "${FILES_MIME[@]}"
     do
-        local FILE=$(echo "$ELEMENT" | cut -d : -f 1)
-        local MIME=$(echo "$ELEMENT" | cut -d : -f 2)
+        OLDIFS="$IFS"
+        IFS=":"
+        read FILE MIME <<< "$ELEMENT"
+        IFS="$OLDIFS"
 
         if [ ! -e "$FILE" ]
         then

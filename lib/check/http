@@ -25,11 +25,12 @@ run() {
     local HTTP_CHECK URL TYPE TARGET METHOD
     for HTTP_CHECK in ${HTTP_CHECKS[@]}
     do
-        URL=$(echo "$HTTP_CHECK" | cut -d '|' -f 1 )
-        TYPE=$(echo "$HTTP_CHECK" | cut -d '|' -f 2 )
-        TARGET=$(echo "$HTTP_CHECK" | cut -d '|' -f 3 )
-        METHOD=$(echo "$HTTP_CHECK" | cut -d '|' -f 4 )
-        [ -z "$METHOD" ] && METHOD="GET"
+        OLDIFS="$IFS"
+        IFS="|"
+        read URL TYPE TARGER METHOD <<< "$HTTP_CHECK"
+        IFS="$OLDIFS"
+
+        METHOD=${METHOD:-GET}
 
         #explain "testing $URL expecting $TYPE with target $TARGET"
 
