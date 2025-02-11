@@ -33,10 +33,19 @@ NOTIFY=1
 LANG=C
 
 # ---------------------------------------- helpers
+# no color
+ESC_GRA=""
+ESC_RED=""
+ESC_GRE=""
+ESC_YEL=""
+ESC_BLU=""
+ESC_MAG=""
+ESC_CYA=""
+ESC_WHI=""
+ESC_RST=""
+ESC_BOLD=""
 
-# check that STDOUT is a tty
-if [ -t 1 ]
-then
+colorize() {
     # color
     ESC_GRA="\e[90m"
     ESC_RED="\e[91m"
@@ -48,19 +57,7 @@ then
     ESC_WHI="\e[97m"
     ESC_RST="\e[0m"
     ESC_BOLD="\e[1m"
-else
-    # no color
-    ESC_GRA=""
-    ESC_RED=""
-    ESC_GRE=""
-    ESC_YEL=""
-    ESC_BLU=""
-    ESC_MAG=""
-    ESC_CYA=""
-    ESC_WHI=""
-    ESC_RST=""
-    ESC_BOLD=""
-fi
+}
 
 IS_VM=""
 
@@ -679,7 +676,7 @@ cmd_last_report() {
     echo
     if [ ! -e $REPORT ]
     then
-        echo "please run '$SCRIPTNAME full-check' to have report"
+        echo "host-tools last report missing, please run '$SCRIPTNAME full-check' to have report"
         return
     fi
 
@@ -762,6 +759,7 @@ options:
     -c|--config <file>    specify config file (default: $CONFIG)
     -r|--report <file>    specify report file (default: $REPORT)
     -s|--silent           mute notifications
+    --color               force color output
 
 command:
 
@@ -784,6 +782,12 @@ EOF
 
 
 # ------------------------------------------------------ main
+
+# check that STDOUT is a tty
+if [ -t 1 ]
+then
+    colorize
+fi
 
 # Important: modules must be init before Config
 for DIR in  $BASEDIR/lib/check $BASEDIR/lib/host-tools/check
@@ -824,6 +828,11 @@ do
         -s|--silent)
             shift
             NOTIFY=0
+            ;;
+
+        --color)
+            shift
+            colorize
             ;;
 
         *)
