@@ -25,7 +25,6 @@ LOCK="$RUNDIR/host-tools.lock"
 HOSTNAME=$(hostname)
 SCRIPTNAME=$(basename $0)
 
-ALARM=0
 CONFIG_LOADED=0
 COMMAND_FOUND=0
 NOTIFY=1
@@ -76,25 +75,25 @@ CHECK_DISABLED=255
 display_return_code() {
     case $1 in
         $CHECK_SUCCESS)
-            echo "🟢 success"
+            echo "🟢 ${ESC_GRE}success"
             ;;
         $CHECK_WARNING)
-            echo "🟠 warning"
+            echo "🟠 ${ESC_YEL}warning"
             ;;
         $CHECK_FAILED)
-            echo "🔴 failed"
+            echo "🔴 ${ESC_RED}failed"
             ;;
         $CHECK_IGNORED)
-            echo "❌ ignored"
+            echo "✂️ ${ESC_GRA}ignored"
             ;;
         $CHECK_IMPOSSIBLE)
-            echo "🔥 impossible"
+            echo "🔥 ${ESC_MAG}impossible"
             ;;
         $CHECK_DISABLED)
-            echo "🚫 disabled"
+            echo "🚫 ${ESC_GRA}disabled"
             ;;
         *)
-            echo "$1 unknown"
+            echo "$1 ${ESC_BOLD}unknown"
             ;;
     esac
 }
@@ -285,15 +284,26 @@ max() {
 }
 
 explain() {
-    echo -e "${ESC_WHI}$*" $ESC_RST
+    local opt
+    if [ "$1" = "-n" ]
+    then
+        opt="-n"
+        shift
+    fi
+    echo -e $opt "${ESC_WHI}$*$ESC_RST"
 }
 
 abort() {
-    echo -e "${ESC_MAG}$*" $ESC_RST
+    local opt
+    if [ "$1" = "-n" ]
+    then
+        opt="-n"
+        shift
+    fi
+    echo -e "${ESC_MAG}$*$ESC_RST"
 }
 
 alert() {
-    ALARM=1
     logger -p user.crit -t "$SCRIPTNAME" -- "$*"
     echo -e "${ESC_RED}ALERT:" "$*" $ESC_RST
     echo -e "$*" >>$REPORT
@@ -565,7 +575,7 @@ _decorate_check() {
 
     local ret=${PIPESTATUS[0]}
 
-    echo -e "    $ESC_CYA$_CHECK: $(display_return_code $ret)$ESC_RST"
+    echo -e "    $ESC_CYA$_CHECK result: $(display_return_code $ret)$ESC_RST"
     echo
 
     return $ret
@@ -579,6 +589,7 @@ cmd_full_check() {
 
     local TOTAL=$(compgen -A function | grep ^check_ | wc -l)
     local COUNT=0
+    local ERROR_COUNT=0
     local POS
 
     # execute all check_* functions
@@ -587,15 +598,20 @@ cmd_full_check() {
         COUNT=$(( $COUNT + 1 ))
         POS=$(printf '[%3d/%3d]' $COUNT $TOTAL)
         _decorate_check "$CHECK" "$POS"
+        case $? in
+            $CHECK_FAILED|$CHECK_WARNING|$CHECK_IMPOSSIBLE)
+                ERROR_COUNT=$(( $ERROR_COUNT + 1 ))
+                ;;
+        esac
     done
 
-    if [ "$ALARM" != "0" ]
+    if [ $ERROR_COUNT -ne 0 ]
     then
         MESSAGE="please check *$HOSTNAME*:"$'\n'"$(grep -v '^@silent' $REPORT | sed 's/^/  `/; s/$/`/;')"
         notify "⚠️  $MESSAGE"
 
         echo
-        echo -e "⚠️  ${ESC_RED}please check $HOSTNAME, got $(grep -v '^@silent' $REPORT | wc -l) issue(s)${ESC_RST}"
+        echo -e "⚠️  ${ESC_RED}please check $HOSTNAME, got $ERROR_COUNT issue(s) out of $COUNT tests${ESC_RST}"
 
     else
         logger -p user.info -t $SCRIPTNAME -- "full check success"
@@ -617,6 +633,7 @@ cmd_full_check() {
 
     unlock
 
+    return $ERROR_COUNT
 }
 
 # FIXME: depends on a variable from a module, should be moved into this module
@@ -851,7 +868,7 @@ then
     [ $CONFIG_LOADED -eq 0 ] && load_config
     load_config
     cmd_full_check
-    exit $ALARM
+    exit $?
 fi
 
 
@@ -862,5 +879,5 @@ then
     exit 1
 fi
 
-exit $ALARM
+exit 0
 
