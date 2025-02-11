@@ -28,6 +28,7 @@ SCRIPTNAME=$(basename $0)
 CONFIG_LOADED=0
 COMMAND_FOUND=0
 NOTIFY=1
+PREFIX=""
 
 # keep original language to normalize script output
 LANG=C
@@ -303,14 +304,20 @@ abort() {
 alert() {
     logger -p user.crit -t "$SCRIPTNAME" -- "$*"
     echo -e "${ESC_RED}ALERT:" "$*" $ESC_RST
-    echo -e "$*" >>$REPORT
+    echo -e "$*" | sed "s/^/$PREFIX/" >>$REPORT
 
     return $CHECK_FAILED
 }
 
+# for compatibility
 silent_alert() {
+    warn "$*"
+    return $?
+}
+
+warn() {
     echo -e "${ESC_YEL}SILENT ALERT:" "$*" $ESC_RST
-    echo -e "$*" | sed 's/^/@silent /' >>$REPORT
+    echo -e "$*" | sed "s/^/@silent $PREFIX/" >>$REPORT
 
     return $CHECK_WARNING
 }
@@ -594,12 +601,14 @@ cmd_full_check() {
     do
         COUNT=$(( $COUNT + 1 ))
         POS=$(printf '[%3d/%3d]' $COUNT $TOTAL)
+        PREFIX="[$CHECK] "
         _decorate_check "$CHECK" "$POS"
         case $? in
             $CHECK_FAILED|$CHECK_WARNING|$CHECK_IMPOSSIBLE)
                 ERROR_COUNT=$(( $ERROR_COUNT + 1 ))
                 ;;
         esac
+        PREFIX=""
     done
 
     if [ $ERROR_COUNT -ne 0 ]
