@@ -35,16 +35,33 @@ LANG=C
 
 # ---------------------------------------- helpers
 
-ESC_GRA="\e[90m"
-ESC_RED="\e[91m"
-ESC_GRE="\e[92m"
-ESC_YEL="\e[93m"
-ESC_BLU="\e[94m"
-ESC_MAG="\e[95m"
-ESC_CYA="\e[96m"
-ESC_WHI="\e[97m"
-ESC_RST="\e[0m"
-ESC_BOLD="\e[1m"
+# check that STDOUT is a tty
+if [ -t 1 ]
+then
+    # color
+    ESC_GRA="\e[90m"
+    ESC_RED="\e[91m"
+    ESC_GRE="\e[92m"
+    ESC_YEL="\e[93m"
+    ESC_BLU="\e[94m"
+    ESC_MAG="\e[95m"
+    ESC_CYA="\e[96m"
+    ESC_WHI="\e[97m"
+    ESC_RST="\e[0m"
+    ESC_BOLD="\e[1m"
+else
+    # no color
+    ESC_GRA=""
+    ESC_RED=""
+    ESC_GRE=""
+    ESC_YEL=""
+    ESC_BLU=""
+    ESC_MAG=""
+    ESC_CYA=""
+    ESC_WHI=""
+    ESC_RST=""
+    ESC_BOLD=""
+fi
 
 IS_VM=""
 
@@ -92,7 +109,7 @@ detect_virt() {
             systemd-detect-virt -v -q
             IS_VM=$?
         else
-
+            # naive approach
             grep -q -E -i '^(qemu|kvm|zvm|vmware|microsoft|oracle|powervm|xen|bochs|uml|parallels|bhyve|qnx|acrn)' /sys/class/dmi/id/board_vendor
             IS_VM=$?
         fi
@@ -133,17 +150,17 @@ min_to_human_display() {
    local answer=""
    if [ $days -gt 0 ]
    then
-           answer="${days}d"
+       answer="${days}d"
    fi
 
    if [ $hours -gt 0 ]
    then
-           answer="${answer}${hours}h"
+       answer="${answer}${hours}h"
    fi
 
    if [ $expires -gt 0 ]
    then
-           answer="${answer}${expires}m"
+       answer="${answer}${expires}m"
    fi
 
    echo $answer
@@ -530,6 +547,30 @@ cmd_check_list() {
     done
 }
 
+# decorate check output
+_decorate_check() {
+    local _CHECK="$1"
+    local _POS="$2"
+
+    echo -e "$ESC_CYA== $_POS $_CHECK == $ESC_RST"
+
+    local _err=$(echo -e "$ESC_GRA")
+    local _rst=$(echo -e "$ESC_RST")
+
+    (
+        $_CHECK
+    ) \
+        > >(sed -u "s/^\(.*\)/    \1/") \
+        2> >(sed -u "s/^\(.*\)/    $_err\1$_rst/" >&2)
+
+    local ret=${PIPESTATUS[0]}
+
+    echo -e "    $ESC_CYA$_CHECK: $(display_return_code $ret)$ESC_RST"
+    echo
+
+    return $ret
+}
+
 cmd_full_check() {
 
     lock || return 1
@@ -544,11 +585,8 @@ cmd_full_check() {
     for CHECK in $(compgen -A function | grep ^check_ | sort)
     do
         COUNT=$(( $COUNT + 1 ))
-        POS=$(printf '%02d/%02d' $COUNT $TOTAL)
-        echo -e "$ESC_CYA[$POS] +++ $CHECK...$ESC_RST"
-        $CHECK
-        echo -e "$ESC_CYA[$POS] --- $CHECK: $(display_return_code $?)$ESC_RST"
-        echo
+        POS=$(printf '[%3d/%3d]' $COUNT $TOTAL)
+        _decorate_check "$CHECK" "$POS"
     done
 
     if [ "$ALARM" != "0" ]
@@ -791,11 +829,12 @@ do
                 # command exists, execute it giving next parameters
                 COMMAND_FOUND=1
                 shift
-                $COMMAND "$@"
                 ANSWER=$?
                 if [[ $COMMAND =~ ^check ]]
                 then
-                    echo return code: $ANSWER
+                    _decorate_check "$COMMAND" ""
+                else
+                    $COMMAND "$@"
                 fi
             else
                 echo "command $1 not recognized"
