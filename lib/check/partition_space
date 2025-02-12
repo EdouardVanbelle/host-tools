@@ -85,7 +85,7 @@ run() {
                 mv $CACHE $CACHE.$CACHE_TIME
                 echo $AVAIL > $CACHE
             fi
-            OLDEST_CACHE=$(ls --reverse --sort=time $CACHE.* | head -n 1)
+            OLDEST_CACHE=$(ls --reverse --sort=time $CACHE.* 2>/dev/null | head -n 1)
         fi
 
         if [ ! -z "$OLDEST_CACHE" ]
