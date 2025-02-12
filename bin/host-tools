@@ -609,7 +609,7 @@ cmd_full_check() {
     lock || return 1
 
     # ensure report is clean
-    unlink $REPORT.new
+    [ -e $REPORT.new ] && unlink $REPORT.new
 
     local TOTAL=$(compgen -A function | grep ^check_ | wc -l)
     local COUNT=0
