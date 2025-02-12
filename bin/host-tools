@@ -135,32 +135,52 @@ urlencode() {
 
 min_to_human_display() {
 
-   local expires=$1
-   # FIXME could take unit from (min or sec)
+    local expires=$1
+    local short=$2
 
-   local days=$(( $expires/(60*24) ))
-   expires=$(( $expires - ($days*60*24) ))
+    # FIXME: round rather truncate in short mode
+    # FIXME could take unit from (min or sec)
 
-   local hours=$(( $expires/60 ))
-   expires=$(( $expires - ($hours*60) ))
+    local years=$(( $expires/(60*24*365) ))
+    expires=$(( $expires - ($years*60*24*365) ))
 
-   local answer=""
-   if [ $days -gt 0 ]
-   then
-       answer="${days}d"
-   fi
+    local days=$(( $expires/(60*24) ))
+    expires=$(( $expires - ($days*60*24) ))
 
-   if [ $hours -gt 0 ]
-   then
-       answer="${answer}${hours}h"
-   fi
+    local hours=$(( $expires/60 ))
+    expires=$(( $expires - ($hours*60) ))
 
-   if [ $expires -gt 0 ]
-   then
-       answer="${answer}${expires}m"
-   fi
+    local answer=""
+    if [ $years -gt 0 ]
+    then
+        # round if > 2/3 year
+        [ -n "$short" -a $days -ge $(( 365*2/3 )) ] && years=$(( $years + 1 ))
+        answer="${years}y"
+        [ -n "$short" ] && echo $answer && return
+    fi
 
-   echo $answer
+    if [ $days -gt 0 ]
+    then
+        # round if > 2/3 day
+        [ -n "$short" -a $hours -ge 16 ] && days=$(( $days + 1 ))
+        answer="${answer}${days}d"
+        [ -n "$short" ] && echo $answer && return
+    fi
+
+    if [ $hours -gt 0 ]
+    then
+        # round if > 2/3 hours
+        [ -n "$short" -a $expires -ge 40 ] && hours=$(( $hours + 1 ))
+        answer="${answer}${hours}h"
+        [ -n "$short" ] && echo $answer && return
+    fi
+
+    if [ $expires -gt 0 ]
+    then
+        answer="${answer}${expires}m"
+    fi
+
+    echo $answer
 }
 
 byte_to_human_display() {
@@ -304,7 +324,7 @@ abort() {
 alert() {
     logger -p user.crit -t "$SCRIPTNAME" -- "$*"
     echo -e "${ESC_RED}ALERT:" "$*" $ESC_RST
-    echo -e "$*" | sed "s/^/$PREFIX/" >>$REPORT
+    echo -e "$*" | sed "s/^/$PREFIX/" >>$REPORT.new
 
     return $CHECK_FAILED
 }
@@ -317,7 +337,7 @@ silent_alert() {
 
 warn() {
     echo -e "${ESC_YEL}SILENT ALERT:" "$*" $ESC_RST
-    echo -e "$*" | sed "s/^/@silent $PREFIX/" >>$REPORT
+    echo -e "$*" | sed "s/^/@silent $PREFIX/" >>$REPORT.new
 
     return $CHECK_WARNING
 }
@@ -420,11 +440,11 @@ lock() {
         local BIRTHTIME=$(stat -c '%W' $LOCK)
         local AGE=$[ ( $NOW - $BIRTHTIME ) / 3600]
         if [ $AGE -ge 1 ]
-       then
-           MESSAGE="Alert 'host-tools' is locked on *$HOSTNAME* since too long time: $AGE hour(s)"
+        then
+            MESSAGE="Alert 'host-tools' is locked on *$HOSTNAME* since too long time: $AGE hour(s)"
             echo "$MESSAGE" 1>&2
             notify "⚠️  $MESSAGE"
-       fi
+        fi
 
         return 1
     fi
@@ -571,9 +591,8 @@ _decorate_check() {
     local _err=$(echo -e "$ESC_GRA")
     local _rst=$(echo -e "$ESC_RST")
 
-    (
-        $_CHECK
-    ) \
+    # check is executed in a sub shell, module cannot alter variables
+    ( $_CHECK ) \
         > >(sed -u "s/^\(.*\)/    \1/") \
         2> >(sed -u "s/^\(.*\)/    $_err\1$_rst/" >&2)
 
@@ -589,7 +608,8 @@ cmd_full_check() {
 
     lock || return 1
 
-    test -e $REPORT && mv $REPORT $REPORT.prev
+    # ensure report is clean
+    unlink $REPORT.new
 
     local TOTAL=$(compgen -A function | grep ^check_ | wc -l)
     local COUNT=0
@@ -604,7 +624,7 @@ cmd_full_check() {
         PREFIX="[$CHECK] "
         _decorate_check "$CHECK" "$POS"
         case $? in
-            $CHECK_FAILED|$CHECK_WARNING|$CHECK_IMPOSSIBLE)
+            $CHECK_FAILED|$CHECK_IMPOSSIBLE)
                 ERROR_COUNT=$(( $ERROR_COUNT + 1 ))
                 ;;
         esac
@@ -613,7 +633,7 @@ cmd_full_check() {
 
     if [ $ERROR_COUNT -ne 0 ]
     then
-        MESSAGE="please check *$HOSTNAME*:"$'\n'"$(grep -v '^@silent' $REPORT | sed 's/^/  `/; s/$/`/;')"
+        MESSAGE="please check *$HOSTNAME*:"$'\n'"$(grep -v '^@silent' $REPORT.new | sed 's/^/  `/; s/$/`/;')"
         notify "⚠️  $MESSAGE"
 
         echo
@@ -625,7 +645,7 @@ cmd_full_check() {
         echo
         echo -e "✅ ${ESC_GRE}full check success${ESC_RST}"
 
-        echo "full-check success at "$(date) >>$REPORT
+        echo "full-check success at "$(date) >>$REPORT.new
 
         if [ -f $REPORT.prev ]
         then
@@ -636,6 +656,10 @@ cmd_full_check() {
             fi
         fi
     fi
+
+    # ensure $REPORT file always exists
+    ln -f $REPORT $REPORT.prev
+    mv $REPORT.new $REPORT
 
     unlock
 
@@ -680,21 +704,12 @@ cmd_notify() {
 
 cmd_last_report() {
 
-    # FIXME: 'd rather use a temp file while building new report
-
     echo
     if [ ! -e $REPORT ]
     then
         echo "host-tools last report missing, please run '$SCRIPTNAME full-check' to have report"
         return
     fi
-
-    #if ! tty >/dev/null 2>/dev/null
-    #then
-    #    cat $REPORT
-    #    echo
-    #    return
-    #fi
 
     TAB="    "
 
