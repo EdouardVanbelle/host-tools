@@ -4,39 +4,124 @@ DESCRIPTION="check volume remaining space"
 
 init() {
     DISKLIMIT=75
+    # values in days
+    PARTITION_SPACE_CACHE_FREQ=1
+    PARTITION_SPACE_CACHE_TIMEOUT=14
+    # in days
+    PARTITION_SPACE_TIME_BEFORE_FULL=100
 }
 
 run() {
 
     local RETURN=$CHECK_SUCCESS
 
-    local PARTITION FSTYPE IPCENT PCENT
-    while read -r PARTITION FSTYPE IPCENT PCENT
+    # FIXME: write remaining space in cache and compare it to create a naive approach of the consumption
+
+    local SOURCES
+    declare -A SOURCES
+
+    local NOW=$(date +'%s')
+
+    test -d "$VARDIR/cache" || mkdir "$VARDIR/cache"
+
+    # AVAIL in kB
+    local SOURCE PARTITION FSTYPE AVAIL IPCENT PCENT
+    while read -r SOURCE PARTITION FSTYPE AVAIL IPCENT PCENT
     do
         IPCENT=${IPCENT%?}
         PCENT=${PCENT%?}
 
-        explain "checking partition $PARTITION"
+        # this source has already been checked
+        [ ! -z ${SOURCES[$SOURCE]} ] && continue
+        SOURCES[$SOURCE]="done"
+
+        explain "checking partition $PARTITION (avail space: $(byte_to_human_display $AVAIL 'kB'))"
+
+        # TODO: write name
+        ESCAPED_NAME=$(urlencode $PARTITION)
+
+        CACHE="$VARDIR/cache/partition.$ESCAPED_NAME.remaining"
 
         if [ $PCENT -ge $DISKLIMIT ]
         then
             alert "$PARTITION reached size limit: $PCENT %"
             RETURN=$(max $? $RETURN)
+
+            continue
         else
-            echo "$PARTITION size ok ($PCENT %)"
+            echo "$PARTITION size ok ($PCENT % used)"
         fi
 
-        [ -z "$IPCENT" ] && continue
 
-        if [ $IPCENT -ge $DISKLIMIT ]
+        if [ ! -z "$IPCENT" ]
         then
-            alert "$PARTITION reached inode size limit: $IPCENT %"
-            RETURN=$(max $? $RETURN)
-        else
-            echo "$PARTITION inode size ok ($IPCENT %)"
+            if [ $IPCENT -ge $DISKLIMIT ]
+            then
+                alert "$PARTITION reached inode size limit: $IPCENT %"
+                RETURN=$(max $? $RETURN)
+            else
+                echo "$PARTITION inode size ok ($IPCENT %)"
+            fi
         fi
 
-    done < <( df -l --exclude-type="devtmpfs" --exclude-type="tmpfs" --exclude-type="overlay" --output="source,fstype,ipcent,pcent" | tail -n +2 )
+
+        if [ $PCENT -ge 99 ]
+        then
+            # don't need deeper check
+            continue
+        fi
+
+        # check estimated time to reach a disk full
+        if [ ! -e $CACHE ]
+        then
+            echo $AVAIL > $CACHE
+        else
+            CACHE_TIME=$(stat -c '%Y' $CACHE)
+
+            # each $PARTITION_SPACE_CACHE_FREQ days: rotate the cache
+            if [ $(( $NOW - $CACHE_TIME )) -gt $(( 3600 * 24 * $PARTITION_SPACE_CACHE_FREQ )) ]
+            #if [ $(( $NOW - $CACHE_TIME )) -gt 60 ]
+            then
+                mv $CACHE $CACHE.$CACHE_TIME
+                echo $AVAIL > $CACHE
+            fi
+            OLDEST_CACHE=$(ls --reverse --sort=time $CACHE.* | head -n 1)
+        fi
+
+        if [ ! -z "$OLDEST_CACHE" ]
+        then
+            OLDEST_TIME=$(stat -c '%Y' $OLDEST_CACHE)
+            OLDEST_AVAIL=$(cat $OLDEST_CACHE)
+
+            DELTA_SPACE=$(( $AVAIL - $OLDEST_AVAIL ))
+            DELTA_TIME=$(( $NOW - $OLDEST_TIME ))
+
+            echo "space left delta: $DELTA_SPACE kB in $(( $DELTA_TIME / 60 ))min"
+
+            if [[ $DELTA_SPACE -lt 0 ]]
+            then
+
+                # FIXME: to consider DISKLIMIT
+                TIME_LEFT=$(( $DELTA_TIME * $AVAIL / -$DELTA_SPACE / 60 ))
+                echo "$(min_to_human_display $TIME_LEFT 1) estimated left before reaching a partition full"
+
+                # in min
+                TIME_LIMIT=$(( $PARTITION_SPACE_TIME_BEFORE_FULL * 24 * 60 ))
+                if [ $TIME_LEFT -le $TIME_LIMIT ]
+                then
+                    alert "$PARTITION will be full in $(min_to_human_display $TIME_LEFT 1) which is less than the allowed time ($(min_to_human_display $TIME_LIMIT))"
+                fi
+            else
+                echo "space is growing"
+            fi
+        fi
+
+        echo
+
+    done < <( df -l --exclude-type="devtmpfs" --exclude-type="tmpfs" --exclude-type="overlay" --output="source,target,fstype,avail,ipcent,pcent" | tail -n +2 )
+
+    # remove old cache values
+    find "$VARDIR/cache" -name 'partition.*.remaining.*' -ctime +$PARTITION_SPACE_CACHE_TIMEOUT -delete
 
     return $RETURN
 }
