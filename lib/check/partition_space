@@ -96,7 +96,7 @@ run() {
             DELTA_SPACE=$(( $AVAIL - $OLDEST_AVAIL ))
             DELTA_TIME=$(( $NOW - $OLDEST_TIME ))
 
-            echo "space left delta: $DELTA_SPACE kB in $(( $DELTA_TIME / 60 ))min"
+            echo "space left delta: $DELTA_SPACE kB in $(min_to_human_display $(( $DELTA_TIME / 60 )))"
 
             if [[ $DELTA_SPACE -lt 0 ]]
             then
