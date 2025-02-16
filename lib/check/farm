@@ -53,7 +53,6 @@ run() {
 
     if [ ${#ARPING[@]} -gt 0 ]
     then
-
         if ! which arping > /dev/null
         then
             echo "Please install arping, via 'apt install arping'" &>2
@@ -81,7 +80,6 @@ run() {
         abort "no host to check"
         return $CHECK_IGNORED
     fi
-
 
     if ! which fping >/dev/null
     then
@@ -114,7 +112,23 @@ run() {
         return 0
     fi
 
-    fping -c 3 -q -B 1.5 "${PING[@]}" 2>$TMPDIR/host-tools.ping
+    local FPING=()
+    # because fping will not raise hosts that do not resolve
+    for SERVER in "${PING[@]}"
+    do
+        # use getent hosts which will invoke nsswitch preferences (can be a rdns lookup, etc)
+        if ! getent hosts "$SERVER" >/dev/null 2>/dev/null
+        then
+            local do_alert=alert
+            contains "$SERVER" "${SILENT_HOSTDOWN[@]}" && do_alert="silent_alert"
+            $do_alert "unable to found $SERVER's IP"
+            RETURN=$(max $? $RETURN)
+            continue
+        fi
+        FPING+=($SERVER)
+    done
+
+    fping -c 3 -q -B 1.5 "${FPING[@]}" 2>$TMPDIR/host-tools.ping
 
     cat $TMPDIR/host-tools.ping
 
