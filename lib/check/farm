@@ -77,8 +77,8 @@ run() {
 
     if [ ${#PING[@]} -eq 0 ]
     then
-        abort "no host to check"
-        return $CHECK_IGNORED
+        abort "no more host to check"
+        return $RETURN
     fi
 
     if ! which fping >/dev/null
@@ -127,6 +127,12 @@ run() {
         fi
         FPING+=($SERVER)
     done
+
+    if [ ${#FPING[@]} -eq 0 ]
+    then
+        abort "no more host to check"
+        return $RETURN
+    fi
 
     fping -c 3 -q -B 1.5 "${FPING[@]}" 2>$TMPDIR/host-tools.ping
 
