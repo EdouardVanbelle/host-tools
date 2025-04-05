@@ -1,0 +1,40 @@
+#!/bin/bash
+
+DESCRIPTION="ensure watchdog is used"
+
+init() {
+    return 0
+}
+
+run() {
+
+    if [ ! -e /sys/class/watchdog/watchdog0 ]
+    then
+       abort "no hardware watchdog found [ignoring test]"
+       return $CHECK_IGNORED
+    fi
+
+    if [ ! -e /sys/class/watchdog/watchdog0/identity ]
+    then
+       abort "watchdog identity not found (old driver ? case with raspi) [ignoring test]"
+       return $CHECK_IGNORED
+    fi
+
+    local IDENTITY
+    local STATE
+    local RETURN=$CHECK_SUCCESS
+
+    IDENTITY=$(cat /sys/class/watchdog/watchdog0/identity)
+    STATE=$(cat /sys/class/watchdog/watchdog0/state)
+
+    explain "checking watchdog $IDENTITY"
+
+    if [ "active" != "$STATE" ]
+    then
+        alert "you have an unused hardware watchdog $IDENTITY"
+        RETURN=$(max $? $RETURN)
+    fi
+
+    return $RETURN
+}
+
