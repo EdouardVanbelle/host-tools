@@ -48,16 +48,16 @@ ESC_BOLD=""
 
 colorize() {
     # color
-    ESC_GRA="\e[90m"
-    ESC_RED="\e[91m"
-    ESC_GRE="\e[92m"
-    ESC_YEL="\e[93m"
-    ESC_BLU="\e[94m"
-    ESC_MAG="\e[95m"
-    ESC_CYA="\e[96m"
-    ESC_WHI="\e[97m"
-    ESC_RST="\e[0m"
-    ESC_BOLD="\e[1m"
+    ESC_GRA=$'\e[90m'
+    ESC_RED=$'\e[91m'
+    ESC_GRE=$'\e[92m'
+    ESC_YEL=$'\e[93m'
+    ESC_BLU=$'\e[94m'
+    ESC_MAG=$'\e[95m'
+    ESC_CYA=$'\e[96m'
+    ESC_WHI=$'\e[97m'
+    ESC_RST=$'\e[0m'
+    ESC_BOLD=$'\e[1m'
 }
 
 IS_VM=""
@@ -321,7 +321,7 @@ explain() {
         opt="-n"
         shift
     fi
-    echo -e $opt "${ESC_WHI}$*$ESC_RST"
+    echo $opt "${ESC_WHI}$*$ESC_RST"
 }
 
 abort() {
@@ -331,7 +331,7 @@ abort() {
         opt="-n"
         shift
     fi
-    echo -e "${ESC_MAG}$*$ESC_RST"
+    echo "${ESC_MAG}$*$ESC_RST"
 }
 
 # for compatibility
@@ -344,27 +344,27 @@ silent_alert() {
 
 notice() {
     logger -p user.notice -t "$SCRIPTNAME" -- "$*"
-    echo -e "${ESC_YEL}notice:" "$*" $ESC_RST
+    echo "${ESC_YEL}notice:" "$*" $ESC_RST
     echo @notice $PREFIX >>$REPORT.new
-    echo -e "$*" >>$REPORT.new
+    echo "$*" >>$REPORT.new
 
     return $CHECK_NOTICE
 }
 
 warn() {
     logger -p user.warning -t "$SCRIPTNAME" -- "$*"
-    echo -e "${ESC_YEL}warn:" "$*" $ESC_RST
+    echo "${ESC_YEL}warn:" "$*" $ESC_RST
     echo @warn $PREFIX >>$REPORT.new
-    echo -e "$*" >>$REPORT.new
+    echo "$*" >>$REPORT.new
 
     return $CHECK_WARNING
 }
 
 alert() {
     logger -p user.crit -t "$SCRIPTNAME" -- "$*"
-    echo -e "${ESC_RED}ALERT:" "$*" $ESC_RST
+    echo "${ESC_RED}ALERT:" "$*" $ESC_RST
     echo @alert $PREFIX >>$REPORT.new
-    echo -e "$*" >>$REPORT.new
+    echo "$*" >>$REPORT.new
 
     return $CHECK_FAILED
 }
@@ -643,10 +643,10 @@ _decorate_check() {
     local _CHECK="$1"
     local _POS="$2"
 
-    echo -e "$ESC_CYA== $_POS ${_CHECK#check_} == $ESC_RST"
+    echo "$ESC_CYA== $_POS ${_CHECK#check_} == $ESC_RST"
 
-    local _err=$(echo -e "$ESC_GRA")
-    local _rst=$(echo -e "$ESC_RST")
+    local _err=$ESC_GRA
+    local _rst=$ESC_RST
 
     # check is executed in a sub shell, module cannot alter variables
     ( $_CHECK ) \
@@ -655,7 +655,7 @@ _decorate_check() {
 
     local ret=${PIPESTATUS[0]}
 
-    echo -e "    ${ESC_CYA}${_CHECK#check_} result: $(display_return_code $ret)$ESC_RST"
+    echo "    ${ESC_CYA}${_CHECK#check_} result: $(display_return_code $ret)$ESC_RST"
     echo
 
     return $ret
@@ -701,7 +701,7 @@ cmd_full_check() {
                "$(extract_pending_report_level 'notice' | sed 's/^/  `/; s/$/`/;')"
 
         echo
-        echo -e "🚨 ${ESC_RED}please check $HOSTNAME, got $FAILURE_COUNT issue(s) out of $COUNT tests${ESC_RST}"
+        echo "🚨 ${ESC_RED}please check $HOSTNAME, got $FAILURE_COUNT issue(s) out of $COUNT tests${ESC_RST}"
 
         echo "full-check failed ($FAILURE_COUNT failures and $WARNING_COUNT warnings for $COUNT tests) " >>$REPORT.new
 
@@ -721,7 +721,7 @@ cmd_full_check() {
         logger -p user.info -t $SCRIPTNAME -- "full check success ($COUNTERS)"
 
         echo
-        echo -e "✅ ${ESC_GRE}full check success ($COUNTERS) ${ESC_RST}"
+        echo "✅ ${ESC_GRE}full check success ($COUNTERS) ${ESC_RST}"
 
         echo "full-check success ($COUNTERS) " >>$REPORT.new
 
@@ -796,7 +796,7 @@ cmd_last_report() {
     local PREFIX=""
 
     REPORT_DATE="$(stat -c '%y' $REPORT)"
-    echo -e "${ESC_BOLD}$SCRIPTNAME${ESC_RST} report at $REPORT_DATE:"
+    echo "${ESC_BOLD}$SCRIPTNAME${ESC_RST} report at $REPORT_DATE:"
     local OLDIFS=$IFS
     IFS=$'\n'
     while read -r LINE
@@ -804,14 +804,14 @@ cmd_last_report() {
         if [[ $LINE =~ ^full-check\ success ]]
         then
             echo
-            echo -e "$TAB✅ ${ESC_GRE}${LINE}${ESC_RST}"
+            echo "$TAB✅ ${ESC_GRE}${LINE}${ESC_RST}"
             continue
         fi
 
         if [[ $LINE =~ ^full-check\ failed ]]
         then
             echo
-            echo -e "$TAB🚨 ${ESC_RED}${ESC_BOLD}${LINE}${ESC_RST}"
+            echo "$TAB🚨 ${ESC_RED}${ESC_BOLD}${LINE}${ESC_RST}"
             continue
         fi
 
@@ -831,13 +831,13 @@ cmd_last_report() {
 
         case $LEVEL in
             "warn")
-                echo -e "$TAB  🟠 ${ESC_YEL}${ESC_BOLD}${LINE}${ESC_RST}"
+                echo "$TAB  🟠 ${ESC_YEL}${ESC_BOLD}${LINE}${ESC_RST}"
                 ;;
             "notice")
-                echo -e "$TAB  🔕 ${ESC_YEL}${LINE}${ESC_RST}"
+                echo "$TAB  🔕 ${ESC_YEL}${LINE}${ESC_RST}"
                 ;;
             *)
-                echo -e "$TAB  🔴 ${ESC_RED}${ESC_BOLD}${LINE}${ESC_RST}"
+                echo "$TAB  🔴 ${ESC_RED}${ESC_BOLD}${LINE}${ESC_RST}"
                 ;;
         esac
     done < $REPORT
