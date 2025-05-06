@@ -64,16 +64,29 @@ IS_VM=""
 
 # ---------------------------------------- check return
 CHECK_SUCCESS=0
-CHECK_WARNING=1
-CHECK_FAILED=2
-CHECK_IGNORED=253
+
+# message is noticed only localy
+CHECK_NOTICE=1
+
+# check ok, warning are raised
+CHECK_WARNING=2
+
+# considered as failures:
+CHECK_FAILED=3
 CHECK_IMPOSSIBLE=254
+
+CHECK_IGNORED=253
 CHECK_DISABLED=255
+
+# -------------------------------------
 
 display_return_code() {
     case $1 in
         $CHECK_SUCCESS)
             echo "🟢 ${ESC_GRE}success"
+            ;;
+        $CHECK_NOTICE)
+            echo "🟢 + ⓘ  ${ESC_GRE}success with notice"
             ;;
         $CHECK_WARNING)
             echo "🟠 ${ESC_YEL}warning"
@@ -321,26 +334,42 @@ abort() {
     echo -e "${ESC_MAG}$*$ESC_RST"
 }
 
+# for compatibility
+silent_alert() {
+    notice "$*"
+    return $?
+}
+
+# ----------------------------
+
+notice() {
+    logger -p user.notice -t "$SCRIPTNAME" -- "$*"
+    echo -e "${ESC_YEL}notice:" "$*" $ESC_RST
+    echo @notice $PREFIX >>$REPORT.new
+    echo -e "$*" >>$REPORT.new
+
+    return $CHECK_NOTICE
+}
+
+warn() {
+    logger -p user.warning -t "$SCRIPTNAME" -- "$*"
+    echo -e "${ESC_YEL}warn:" "$*" $ESC_RST
+    echo @warn $PREFIX >>$REPORT.new
+    echo -e "$*" >>$REPORT.new
+
+    return $CHECK_WARNING
+}
+
 alert() {
     logger -p user.crit -t "$SCRIPTNAME" -- "$*"
     echo -e "${ESC_RED}ALERT:" "$*" $ESC_RST
-    echo -e "$*" | sed "s/^/$PREFIX/" >>$REPORT.new
+    echo @alert $PREFIX >>$REPORT.new
+    echo -e "$*" >>$REPORT.new
 
     return $CHECK_FAILED
 }
 
-# for compatibility
-silent_alert() {
-    warn "$*"
-    return $?
-}
-
-warn() {
-    echo -e "${ESC_YEL}SILENT ALERT:" "$*" $ESC_RST
-    echo -e "$*" | sed "s/^/@silent $PREFIX/" >>$REPORT.new
-
-    return $CHECK_WARNING
-}
+# ----------------------------
 
 to_boolean() {
 
@@ -565,6 +594,34 @@ load_module() {
     unset -v DESCRIPTION
 }
 
+extract_pending_report_level() {
+    local IGNORELEVEL="$1"
+    local PREFIX
+    local LEVEL="alert"
+
+    local OLDIFS=$IFS
+    IFS=$'\n'
+    while read -r LINE
+    do
+        [[ $LINE =~ ^full-check\ success ]] && continue
+
+        # guess level & prefix
+        if [[ $LINE =~ ^@([[:alpha:]]+) ]]
+        then
+            LEVEL=${BASH_REMATCH[1]}
+            PREFIX=${LINE#@$LEVEL }
+            continue
+        fi
+
+        if [ "$LEVEL" != "$IGNORELEVEL" ]
+        then
+            echo "$LINE"
+        fi
+    done < $REPORT.new
+    IFS=$OLDIFS
+
+}
+
 
 # ---------------------------------------- commands
 
@@ -586,7 +643,7 @@ _decorate_check() {
     local _CHECK="$1"
     local _POS="$2"
 
-    echo -e "$ESC_CYA== $_POS $_CHECK == $ESC_RST"
+    echo -e "$ESC_CYA== $_POS ${_CHECK#check_} == $ESC_RST"
 
     local _err=$(echo -e "$ESC_GRA")
     local _rst=$(echo -e "$ESC_RST")
@@ -598,7 +655,7 @@ _decorate_check() {
 
     local ret=${PIPESTATUS[0]}
 
-    echo -e "    $ESC_CYA$_CHECK result: $(display_return_code $ret)$ESC_RST"
+    echo -e "    ${ESC_CYA}${_CHECK#check_} result: $(display_return_code $ret)$ESC_RST"
     echo
 
     return $ret
@@ -613,7 +670,9 @@ cmd_full_check() {
 
     local TOTAL=$(compgen -A function | grep ^check_ | wc -l)
     local COUNT=0
-    local ERROR_COUNT=0
+    local FAILURE_COUNT=0
+    local WARNING_COUNT=0
+    local NOTICE_COUNT=0
     local POS
 
     # execute all check_* functions
@@ -621,33 +680,52 @@ cmd_full_check() {
     do
         COUNT=$(( $COUNT + 1 ))
         POS=$(printf '[%3d/%3d]' $COUNT $TOTAL)
-        PREFIX="[$CHECK] "
+        PREFIX='#'"${CHECK#check_} "
         _decorate_check "$CHECK" "$POS"
         case $? in
             $CHECK_FAILED|$CHECK_IMPOSSIBLE)
-                ERROR_COUNT=$(( $ERROR_COUNT + 1 ))
+                FAILURE_COUNT=$(( $FAILURE_COUNT + 1 ))
                 ;;
+            $CHECK_WARNING)
+                WARNING_COUNT=$(( $WARNING_COUNT + 1 ))
+                ;;
+            $CHECK_NOTICE)
+                NOTICE_COUNT=$(( $NOTICE_COUNT + 1 ))
         esac
         PREFIX=""
     done
 
-    if [ $ERROR_COUNT -ne 0 ]
+    if [ $FAILURE_COUNT -ne 0 ]
     then
-        MESSAGE="please check *$HOSTNAME*:"$'\n'"$(grep -v '^@silent' $REPORT.new | sed 's/^/  `/; s/$/`/;')"
-        notify "⚠️  $MESSAGE"
+        notify "🚨 *$HOSTNAME* has *$FAILURE_COUNT failures* and *$WARNING_COUNT warnings* for $COUNT tests:" $'\n' \
+               "$(extract_pending_report_level 'notice' | sed 's/^/  `/; s/$/`/;')"
 
         echo
-        echo -e "⚠️  ${ESC_RED}please check $HOSTNAME, got $ERROR_COUNT issue(s) out of $COUNT tests${ESC_RST}"
+        echo -e "🚨 ${ESC_RED}please check $HOSTNAME, got $FAILURE_COUNT issue(s) out of $COUNT tests${ESC_RST}"
+
+        echo "full-check failed ($FAILURE_COUNT failures and $WARNING_COUNT warnings for $COUNT tests) " >>$REPORT.new
 
     else
-        logger -p user.info -t $SCRIPTNAME -- "full check success"
+
+        local NOTIFIED=0
+        if [ $WARNING_COUNT -ne 0 ]
+        then
+            notify "✅ *$HOSTNAME* full-check is *successful*" $'\n' \
+                   "⚠️  but with *$WARNING_COUNT warnings*" $'\n' \
+                   "$(extract_pending_report_level 'notice' | sed 's/^/  `/; s/$/`/;')"
+            NOTIFIED=1
+        fi
+
+        local COUNTERS="$COUNT tests with $WARNING_COUNT warnings and $NOTICE_COUNT notices"
+
+        logger -p user.info -t $SCRIPTNAME -- "full check success ($COUNTERS)"
 
         echo
-        echo -e "✅ ${ESC_GRE}full check success${ESC_RST}"
+        echo -e "✅ ${ESC_GRE}full check success ($COUNTERS) ${ESC_RST}"
 
-        echo "full-check success at "$(date) >>$REPORT.new
+        echo "full-check success ($COUNTERS) " >>$REPORT.new
 
-        if [ -f $REPORT.prev ]
+        if [ -f $REPORT.prev ] && [ $NOTIFIED -eq 0 ]
         then
             if ! ( tail -n 1 $REPORT.prev | grep -q "full-check success" )
             then
@@ -663,7 +741,7 @@ cmd_full_check() {
 
     unlock
 
-    return $ERROR_COUNT
+    return $FAILURE_COUNT
 }
 
 # FIXME: depends on a variable from a module, should be moved into this module
@@ -711,26 +789,60 @@ cmd_last_report() {
         return
     fi
 
-    TAB="    "
+    local TAB="    "
+
+
+    local LEVEL="alert"
+    local PREFIX=""
 
     REPORT_DATE="$(stat -c '%y' $REPORT)"
     echo -e "${ESC_BOLD}$SCRIPTNAME${ESC_RST} report at $REPORT_DATE:"
+    local OLDIFS=$IFS
+    IFS=$'\n'
     while read -r LINE
     do
         if [[ $LINE =~ ^full-check\ success ]]
         then
-            echo -e "$TAB✅ ${ESC_GRE}full check success${ESC_RST}"
+            echo
+            echo -e "$TAB✅ ${ESC_GRE}${LINE}${ESC_RST}"
             continue
         fi
 
-        if [[ $LINE =~ ^@silent ]]
+        if [[ $LINE =~ ^full-check\ failed ]]
         then
-            echo -e "$TAB🔕 ${ESC_YEL}${LINE#@silent }${ESC_RST}"
-        else
-            echo -e "$TAB❗ ${ESC_RED}${ESC_BOLD}${LINE}${ESC_RST}"
+            echo
+            echo -e "$TAB🚨 ${ESC_RED}${ESC_BOLD}${LINE}${ESC_RST}"
+            continue
         fi
+
+        # guess level & prefix
+        if [[ $LINE =~ ^@([[:alpha:]]+) ]]
+        then
+            LEVEL=${BASH_REMATCH[1]}
+            local NEWPREFIX=${LINE#@$LEVEL }
+            if [ "$PREFIX" != "$NEWPREFIX" ]
+            then
+                PREFIX=$NEWPREFIX
+            echo
+                echo "$TAB$PREFIX"
+            fi
+            continue
+        fi
+
+        case $LEVEL in
+            "warn")
+                echo -e "$TAB  🟠 ${ESC_YEL}${ESC_BOLD}${LINE}${ESC_RST}"
+                ;;
+            "notice")
+                echo -e "$TAB  🔕 ${ESC_YEL}${LINE}${ESC_RST}"
+                ;;
+            *)
+                echo -e "$TAB  🔴 ${ESC_RED}${ESC_BOLD}${LINE}${ESC_RST}"
+                ;;
+        esac
     done < $REPORT
     echo
+    IFS=$OLDIFS
 }
 
 cmd_backup_etc() {
