@@ -68,12 +68,12 @@ run() {
 
         CACHE="$VARDIR/cache/github.$OWNER-$REPO.latest"
 
-        local do_alert="alert"
+        local do_alert="warn"
 
         if [ -e $CACHE ]
         then
             echo "using cache $CACHE"
-            do_alert="silent_alert"
+            do_alert="notice"
             RETURN=$(max $? $RETURN)
         else
             echo "fetching $URL to $CACHE"
