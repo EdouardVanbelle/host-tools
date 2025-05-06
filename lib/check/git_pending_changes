@@ -73,7 +73,7 @@ run() {
         DELTA="$(git status -s -uno | head -n 2 | sed 's/^/  /')"
         if [ ! -z "$DELTA" ]
         then
-            alert "git dir $GIT_DIR has pending changes:\n$DELTA\n   ..."
+            alert "git dir $GIT_DIR has pending changes:"$'\n'"$DELTA"$'\n   ...'
             RETURN=$(max $? $RETURN)
             echo
             continue
@@ -81,7 +81,7 @@ run() {
             DELTA="$(git status -s | head -n 2 | sed 's/^/  /')"
             if [ ! -z "$DELTA" ]
             then
-                notice "git dir $GIT_DIR has untracked files:\n$DELTA\n   ..."
+                notice "git dir $GIT_DIR has untracked files:"$'\n'"$DELTA"$'\n   ...'
                 RETURN=$(max $? $RETURN)
                 echo
                 continue

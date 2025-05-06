@@ -30,7 +30,7 @@ run() {
     if grep -q -i security $TMPDIR/security-upgrade.list
     then
         LIST="$(grep -i security $TMPDIR/security-upgrade.list | grep ^Inst | awk '{print "  " $2}')"
-        alert "system has security packages to upgrade\n$LIST"
+        alert "system has security packages to upgrade"$'\n'"$LIST"
         RETURN=$(max $? $RETURN)
     fi
 
