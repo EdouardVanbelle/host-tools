@@ -769,7 +769,7 @@ cmd_install_packages() {
 }
 
 cmd_notify_alive() {
-    notify "⏰ *${HOSTNAME}* is alive"
+    notify "❤️  *${HOSTNAME}* is alive"
 }
 
 cmd_notify_boot() {
