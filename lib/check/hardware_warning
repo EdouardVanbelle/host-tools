@@ -1,0 +1,40 @@
+#!/bin/bash
+
+DESCRIPTION="lookup hardware warning in journal"
+
+init() {
+    KERNEL_CRITICAL_IGNORE=""
+}
+
+run() {
+
+    explain "check hardware warnings since 24h"
+
+    if ! which journalctl >/dev/null
+    then
+        # note: could also use dmesg
+        abort "journalctl not found [ignoring test]"
+        return $CHECK_IMPOSSIBLE
+    fi
+
+    local RETURN=$CHECK_SUCCESS
+
+    # -p2 = alert & crit
+    if [ ! -z "$HARDWARE_WARNING_IGNORE" ]
+    then
+        return $CHECK_DISABLED
+    fi
+    journalctl -p warning --system --since="$(date --iso --date='1day ago')" | grep 'Timeout waiting for hardware interrupt.' >> $TMPDIR/hardwarewarning
+
+    # if file is non empty
+    if [ -s $TMPDIR/hardwarewarning ]
+    then
+        cat $TMPDIR/hardwarewarning
+        alert "found critical kernel message " $(tail -n 1 $TMPDIR/hardwarewarning)
+        RETURN=$(max $? $RETURN)
+    fi
+
+    rm -f $TMPDIR/hardwarewarning
+
+    return $RETURN
+}
