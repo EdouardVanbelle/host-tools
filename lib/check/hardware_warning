@@ -4,7 +4,7 @@ DESCRIPTION="lookup hardware warning in journal"
 
 init() {
     KERNEL_CRITICAL_IGNORE=""
-    KERNEL_CRITICAL_REGEX="Timeout waiting for hardware interrupt"
+    KERNEL_CRITICAL_REGEX="Timeout waiting for hardware interrupt|BTRFS warning"
 }
 
 run() {
@@ -25,13 +25,13 @@ run() {
     then
         return $CHECK_DISABLED
     fi
-    journalctl -p warning --system --since="$(date --iso --date='1day ago')" "_TRANSPORT=kernel" | grep "$KERNEL_CRITICAL_REGEX" >> $TMPDIR/hardwarewarning
+    journalctl -p warning --system --since="$(date --iso --date='1day ago')" "_TRANSPORT=kernel" | grep -E "$KERNEL_CRITICAL_REGEX" | sed 's/^/  /' >> $TMPDIR/hardwarewarning
 
     # if file is non empty
     if [ -s $TMPDIR/hardwarewarning ]
     then
         cat $TMPDIR/hardwarewarning
-        alert "found critical kernel message " $(tail -n 1 $TMPDIR/hardwarewarning)
+        warn "found hardwarek warnings: " $(tail -n 1 $TMPDIR/hardwarewarning)
         RETURN=$(max $? $RETURN)
     fi
 
