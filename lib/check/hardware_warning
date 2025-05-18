@@ -4,6 +4,7 @@ DESCRIPTION="lookup hardware warning in journal"
 
 init() {
     KERNEL_CRITICAL_IGNORE=""
+    KERNEL_CRITICAL_REGEX="Timeout waiting for hardware interrupt"
 }
 
 run() {
@@ -24,7 +25,7 @@ run() {
     then
         return $CHECK_DISABLED
     fi
-    journalctl -p warning --system --since="$(date --iso --date='1day ago')" | grep 'Timeout waiting for hardware interrupt.' >> $TMPDIR/hardwarewarning
+    journalctl -p warning --system --since="$(date --iso --date='1day ago')" "_TRANSPORT=kernel" | grep "$KERNEL_CRITICAL_REGEX" >> $TMPDIR/hardwarewarning
 
     # if file is non empty
     if [ -s $TMPDIR/hardwarewarning ]
