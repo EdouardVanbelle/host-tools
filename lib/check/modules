@@ -1,0 +1,54 @@
+#!/bin/bash
+
+DESCRIPTION="check mandatory modules"
+
+init() {
+    # format: list of imandatory modules, prefix it with - if forbidden
+    MODULES=()
+}
+
+run() {
+
+    explain "checking mandatory modules"
+
+    local RETURN=$CHECK_SUCCESS
+
+
+    if [ ${#MODULES[@]} -eq 0 ]
+    then
+        abort "no module to check"
+        return $CHECK_DISABLED
+    fi
+
+    local CURRENT_MODULES
+    CURRENT_MODULES=()
+
+    local MODULE DEPS FORBIDDEN
+    while read -r MODULE DEPS
+    do
+        CURRENT_MODULES+=( $MODULE )
+    done < <( lsmod )
+
+    for MODULE in "${MODULES[@]}"
+    do
+
+        if [[ "$MODULE" =~ ^- ]]
+        then
+            FORBIDDEN="${MODULE:1}"
+            if contains "$FORBIDDEN" "${CURRENT_MODULES[@]}"
+            then
+                alert "forbiden kernel module $FORBIDDEN is loaded"
+                RETURN=$(max $? $RETURN)
+            fi
+        else
+            if ! contains "$MODULE" "${CURRENT_MODULES[@]}"
+            then
+                alert "mandatory kernel module $MODULE is missing"
+                RETURN=$(max $? $RETURN)
+            fi
+        fi
+    done
+
+    return $RETURN
+}
+
