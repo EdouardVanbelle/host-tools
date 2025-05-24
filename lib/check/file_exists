@@ -15,11 +15,20 @@ run() {
 
     local RETURN=$CHECK_SUCCESS
 
-    local FILE
+    local FILE NEGATE
     for FILE in ${MANDATORY_FILES[@]}
     do
-        explain "checking that $FILE exists"
-        if [ ! -e $FILE ]
+        if [[ "$FILE" =~ ^- ]]
+        then
+            FILE="${FILE:1}"
+            NEGATE="!"
+            explain "checking that $FILE does not exist"
+        else
+            NEGATE=""
+            explain "checking that $FILE exists"
+        fi
+
+        if [ $NEGATE ! -e $FILE ]
         then
             alert "$FILE does not exist, please check"
             RETURN=$(max $? $RETURN)
