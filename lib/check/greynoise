@@ -1,0 +1,56 @@
+#!/bin/bash
+
+DESCRIPTION="perform greynoise check"
+
+init() {
+    return 0
+}
+
+run() {
+    if ! which curl >/dev/null
+    then
+        alert "curl not found (fix via 'apt install curl')"
+        return $CHECK_IMPOSSIBLE
+    fi
+
+    if ! which jq >/dev/null
+    then
+        alert "jq not found (fix via 'apt install jq')"
+        return $CHECK_IMPOSSIBLE
+    fi
+
+    local RETURN=$CHECK_SUCCESS
+
+    # Return example:
+    # {
+    #   "ip": "1.2.3.4",
+    #   "status": "not_found",
+    #   "classification": null,
+    #   "noise": false,
+    #   "common_business_services": false,
+    #   "trust_level": null,
+    #   "error": "ip not found"
+    # }
+
+    local CHECK=$(curl -s -H "Accept: application/json" "https://check.labs.greynoise.io/" 2>&1 | jq -r 2>&1)
+    if [[ $? -ne 0 ]]
+    then
+        warn "curl to check.labs.greynoise.io failed: $CHECK"
+        return $CHECK_WARNING
+    fi
+
+    local NOISE=$(jq -r .noise <<<$CHECK)
+    local IP=$(jq -r .ip <<<$CHECK)
+    local STATUS=$(jq -r .status <<<$CHECK)
+    local CLASS=$(jq -r .classification <<<$CHECK)
+
+    if [[ "$NOISE" != "false" ]]
+    then
+        alert "ip $IP is reported in greynoise.iox (status: $STATUS, classification: $CLASS)"
+        return $CHECK_FAILED
+    fi
+
+    echo "ip $IP is clean according greynoise.io"
+    return $CHECK_SUCCESS
+}
+
