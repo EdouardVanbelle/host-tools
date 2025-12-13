@@ -32,6 +32,7 @@ run() {
     #   "error": "ip not found"
     # }
 
+    # TODO: use a cache, 1req / day is enougth
     local CHECK=$(curl -s -H "Accept: application/json" "https://check.labs.greynoise.io/" 2>&1 | jq -r 2>&1)
     if [[ $? -ne 0 ]]
     then
@@ -43,10 +44,11 @@ run() {
     local IP=$(jq -r .ip <<<$CHECK)
     local STATUS=$(jq -r .status <<<$CHECK)
     local CLASS=$(jq -r .classification <<<$CHECK)
+    local TRUST_LEVEL=$(jq -r .trust_level <<<$CHECK)
 
     if [[ "$NOISE" != "false" ]]
     then
-        alert "ip $IP is reported in greynoise.iox (status: $STATUS, classification: $CLASS)"
+        alert "ip $IP is reported in greynoise.iox (status: $STATUS, classification: $CLASS, trust level: $TRUST_LEVEL)"
         return $CHECK_FAILED
     fi
 
