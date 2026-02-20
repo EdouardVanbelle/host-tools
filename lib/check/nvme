@@ -1,0 +1,62 @@
+#!/bin/bash
+
+DESCRIPTION="check nvme health and temperature"
+
+init() {
+    SILENT_BADSECTOR=()
+    BADSECTORLIMIT=0
+    BADTEMPLIMIT=50
+}
+
+run() {
+
+    if detect_virt
+    then
+        abort "this is a virtual machine, test is not relevant [ignoring test]"
+        return $CHECK_IGNORED
+    fi
+
+    if ! grep -q nvme /proc/devices
+    then
+        abort "no nvme found [ignoring test]"
+        return $CHECK_IGNORED
+    fi
+
+    if ! which nvme >/dev/null
+    then
+        abort "nvme not installed (fix: apt-get install nvme-cli) [ignoring test]"
+        return $CHECK_IMPOSSIBLE
+    fi
+
+    if ! which jq >/dev/null
+    then
+        abort "jq not installed (fix: apt-get install jq) [ignoring test]"
+        return $CHECK_IMPOSSIBLE
+    fi
+
+    local RETURN=$CHECK_SUCCESS
+
+    local DISK SHORT CRITICAL
+
+    # foreach disk
+    for DISK in $( find_disks blkext)
+    do
+        SHORT="${DISK##*/}"
+	explain "checking nvme disk $SHORT"
+	CRITICAL=$(nvme smart-log /dev/$DISK -o json | jq -r .critical_warning)
+
+	if [[ $CRITICAL -gt 0 ]]
+	then
+		$do_alert "$SHORT has critical warnings";
+		RETURN=$(max $? $RETURN)
+		nvme smart-log /dev/$DISK
+	else
+		echo "$SHORT is clean"
+	fi
+
+	echo
+    done
+
+    return $RETURN
+}
+

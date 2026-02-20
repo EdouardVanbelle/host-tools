@@ -39,3 +39,9 @@ apt list --upgradable
 
 # check ipv6
 curl -6 https://ifconfig.me
+
+
+# check nvme
+apt install nvme-cli
+nvme list
+nvme smart-log /dev/nvme0
