@@ -72,14 +72,29 @@ run() {
             MAX=""
         fi
 
-        if [[ "$LINE" =~ ^[A-Za-z] ]]
+       if [[ $LINE =~ freq[0-9]_input: ]]
+       then
+         # ignore these units
+         continue
+       fi
+
+       if [[ "$LINE" =~ ^Adaptater: ]]
+       then
+         continue
+       fi
+
+        if [[ "$LINE" =~ ^[^[:space:]:]+$ ]]
         then
-            if [ -z "$NAME" ]
-            then
-                NAME=$LINE
-            else
-                NAME="$NAME > "$LINE
-            fi
+           # new section
+           SECTION=$LINE
+           NAME=$LINE
+        elif [[ "$LINE" =~ ^[[:print:]]+:$ ]]
+       then
+           # sub section
+           NAME="$SECTION > "$LINE
+           # clean
+            INPUT=""
+            MAX=""
         elif [[ "$LINE" =~ ^(  .*_input:) ]]
         then
             # append sensor prefix to header
