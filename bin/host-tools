@@ -550,7 +550,7 @@ load_module() {
 
     # load test
     local FILE=$1
-    local PREFIX=$2
+    local CLASS=$2
     local FUNC
 
     local MODULE=$(basename $MODULE)
@@ -572,7 +572,7 @@ load_module() {
 
         # rename function (namespace it)
         #TARGET eval "${MODULE}_${FUNC}() $(declare -f ${FUNC} | tail -n +2)"
-        eval "${PREFIX}_${MODULE}() $(declare -f ${FUNC} | tail -n +2)"
+        eval "${CLASS}_${MODULE}() $(declare -f ${FUNC} | tail -n +2)"
 
         # remove initial name
         unset -f $FUNC
@@ -647,6 +647,9 @@ _decorate_check() {
 
     local _err=$ESC_GRA
     local _rst=$ESC_RST
+
+    MODULE="${_CHECK#check_}"
+    CLASS="check"
 
     # check is executed in a sub shell, module cannot alter variables
     ( $_CHECK ) \

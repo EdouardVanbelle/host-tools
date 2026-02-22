@@ -85,6 +85,8 @@ run() {
         # 198 Offline_Uncorrectable   0x0008   100   100   000    Old_age   Offline      -       0
         # 199 UDMA_CRC_Error_Count    0x000a   200   200   000    Old_age   Always       -       0
 
+        local SELFVARDIR="$VARDIR/$CLASS/$MODULE/$SHORT"
+
         local ID ATTRIBUTE_NAME FLAG VALUE WORST THRESH TYPE UPDATED WHEN_FAILED RAW_VALUE
         while read -r ID ATTRIBUTE_NAME FLAG VALUE WORST THRESH TYPE UPDATED WHEN_FAILED RAW_VALUE
         do
@@ -130,10 +132,10 @@ run() {
                     echo "INFO: Reported command timeout: $RAW_VALUE"
                    local CMD_TIMEOUT_LIMIT=0
                    # FIXME: make it generic
-                   if [ -e $VARDIR/check/disk_health/$SHORT/Command_Timeout ]
+                   if [ -e $SELFVARDIR/Command_Timeout ]
                    then
-                       echo "using $VARDIR/check/disk_health/$SHORT/Command_Timeout as reference"
-                       CMD_TIMEOUT_LIMIT=$(cat $VARDIR/check/disk_health/$SHORT/Command_Timeout)
+                       echo "using $SELFVARDIR/Command_Timeout as reference"
+                       CMD_TIMEOUT_LIMIT=$(cat $SELFVARDIR/Command_Timeout)
                     fi
 
                     if [ $RAW_VALUE -gt $CMD_TIMEOUT_LIMIT ]
