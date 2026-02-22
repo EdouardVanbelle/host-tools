@@ -128,7 +128,15 @@ run() {
                     #id=188 "Command Timeout"
                                         RAW_VALUE="${RAW_VALUE%% *}" # remove all YY in "XX YY"
                     echo "INFO: Reported command timeout: $RAW_VALUE"
-                    if [ $RAW_VALUE -gt $BADSECTORLIMIT ]
+                   local CMD_TIMEOUT_LIMIT=0
+                   # FIXME: make it generic
+                   if [ -e $VARDIR/check/disk_health/$SHORT/Command_Timeout ]
+                   then
+                       echo "using $VARDIR/check/disk_health/$SHORT/Command_Timeout as reference"
+                       CMD_TIMEOUT_LIMIT=$(cat $VARDIR/check/disk_health/$SHORT/Command_Timeout)
+                    fi
+
+                    if [ $RAW_VALUE -gt $CMD_TIMEOUT_LIMIT ]
                     then
                         $do_alert "$DISK has $RAW_VALUE command timeout";
                         RETURN=$(max $? $RETURN)
