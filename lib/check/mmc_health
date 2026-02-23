@@ -45,7 +45,37 @@ run() {
     for DISK in $( find_disks mmc)
     do
 
+        SHORT="${DISK##*/}"
+        local do_alert=alert
+
+        local SELFVARDIR="$VARDIR/$CLASS/$MODULE/$SHORT"
+        test -e $SELFVARDIR || mkdir -p $SELFVARDIR
+
         explain "checking mmc disk $DISK"
+
+        local UNIQ_ID=$(cat /sys/block/$DISK/device/cid)
+
+        if [[ -z "$UNIQ_ID" ]]
+        then
+            $do_alert "failed to get uniq UNIQ_ID from $DISK"
+            RETURN=$(max $? $RETURN)
+        else
+            echo $DISK has uniq id: cid:$UNIQ_ID
+            if [[ -e $SELFVARDIR/uniq_id ]]
+            then
+                local PREV_UNIQ_ID=$(cat $SELFVARDIR/uniq_id)
+                # check that identifiant has not changed
+                if [[ "$PREV_UNIQ_ID" != "$UNIQ_ID" ]]
+                then
+                    $do_alert "$DISK has changed (current uniq id $UNIQ_ID differs from previous $PREV_UNIQ_ID) please check your hardware or update $SELFVARDIR/uniq_id"
+                    RETURN=$(max $? $RETURN)
+                fi
+            else
+                # store identifiant
+                echo $UNIQ_ID > $SELFVARDIR/uniq_id
+            fi
+        fi
+
 
         mmc extcsd read /dev/$DISK | grep ^eMMC >$TMPDIR/mmc.health
 

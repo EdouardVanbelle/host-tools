@@ -41,10 +41,16 @@ run() {
 
     local DISK SHORT
 
+    local do_alert="alert"
+
     # foreach disk
     for DISK in $( find_disks sd)
     do
         SHORT="${DISK##*/}"
+
+        local SELFVARDIR="$VARDIR/$CLASS/$MODULE/$SHORT"
+        test -e $SELFVARDIR || mkdir -p $SELFVARDIR
+
         explain "checking sd disk $DISK"
         if [ -e "/sys/block/$SHORT/queue/rotational" ]
         then
@@ -56,6 +62,44 @@ run() {
             fi
         else
             echo "$DISK is neither a HDD nor a SSD"
+        fi
+
+        # get uniq WWN - World Wide Name
+        # note: ID_SERIAL works too, WWN is recommanded
+        local W
+        local UNIQ_ID
+        for W in /dev/disk/by-id/wwn-* #/dev/disk/by-id/nvme-eui.*
+        do
+            if [[ $(readlink -f $W) = /dev/$SHORT ]]
+            then
+                # keep number only
+                UNIQ_ID=${W##*/wwn-}
+                break
+            fi
+        done
+
+        # could have used:
+        # UNIQ_ID=$(udevadm info --query=property --name=/dev/$SHORT | grep ID_WWN= | cut -d = -f 2)
+
+        if [[ -z "$UNIQ_ID" ]]
+        then
+            $do_alert "failed to get uniq uniq id (WWN) from $DISK"
+            RETURN=$(max $? $RETURN)
+        else
+            echo $DISK has uniq id wwn:$UNIQ_ID
+            if [[ -e $SELFVARDIR/uniq_id ]]
+            then
+                local PREV_UNIQ_ID=$(cat $SELFVARDIR/uniq_id)
+                # check that identifiant has not changed
+                if [[ "$PREV_UNIQ_ID" != "$UNIQ_ID" ]]
+                then
+                    $do_alert "$DISK has changed (current UNIQ_ID $UNIQ_ID differs from previous $PREV_UNIQ_ID) please check your hardware or update $SELFVARDIR/uniq_id"
+                    RETURN=$(max $? $RETURN)
+                fi
+            else
+                # store identifiant
+                echo $UNIQ_ID > $SELFVARDIR/uniq_id
+            fi
         fi
 
         # foreach smartctl
@@ -85,7 +129,6 @@ run() {
         # 198 Offline_Uncorrectable   0x0008   100   100   000    Old_age   Offline      -       0
         # 199 UDMA_CRC_Error_Count    0x000a   200   200   000    Old_age   Always       -       0
 
-        local SELFVARDIR="$VARDIR/$CLASS/$MODULE/$SHORT"
 
         local ID ATTRIBUTE_NAME FLAG VALUE WORST THRESH TYPE UPDATED WHEN_FAILED RAW_VALUE
         while read -r ID ATTRIBUTE_NAME FLAG VALUE WORST THRESH TYPE UPDATED WHEN_FAILED RAW_VALUE
@@ -118,10 +161,17 @@ run() {
 
                 "187")
                     #id=187 "Reported Uncorrectable Errors"    (bad SSD)
-                    echo "INFO: Reported Uncorrectable Errors: $RAW_VALUE"
-                    if [ $RAW_VALUE -gt $BADSECTORLIMIT ]
+                    local REPORTED_UNCORRECT=0
+                    if [ -e $SELFVARDIR/Reported_Uncorrect ]
                     then
-                        $do_alert "$DISK has $RAW_VALUE uncorrectable errors";
+                       echo "using $SELFVARDIR/Reported_Uncorrect as reference"
+                       REPORTED_UNCORRECT=$(cat $SELFVARDIR/Reported_Uncorrect)
+                    fi
+
+                    echo "INFO: Reported Uncorrectable Errors: $RAW_VALUE (previously $REPORTED_UNCORRECT)"
+                    if [ $RAW_VALUE -gt $REPORTED_UNCORRECT ]
+                    then
+                        $do_alert "$DISK has $RAW_VALUE uncorrectable errors (please store in $SELFVARDIR/Reported_Uncorrect)";
                         RETURN=$(max $? $RETURN)
                     fi
                     ;;
@@ -129,7 +179,6 @@ run() {
                 "188")
                     #id=188 "Command Timeout"
                                         RAW_VALUE="${RAW_VALUE%% *}" # remove all YY in "XX YY"
-                    echo "INFO: Reported command timeout: $RAW_VALUE"
                    local CMD_TIMEOUT_LIMIT=0
                    # FIXME: make it generic
                    if [ -e $SELFVARDIR/Command_Timeout ]
@@ -138,9 +187,10 @@ run() {
                        CMD_TIMEOUT_LIMIT=$(cat $SELFVARDIR/Command_Timeout)
                     fi
 
+                    echo "INFO: Reported command timeout: $RAW_VALUE (previously $CMD_TIMEOUT_LIMIT)"
                     if [ $RAW_VALUE -gt $CMD_TIMEOUT_LIMIT ]
                     then
-                        $do_alert "$DISK has $RAW_VALUE command timeout";
+                        $do_alert "$DISK has $RAW_VALUE command timeout (please store in $SELFVARDIR/Command_Timeout)";
                         RETURN=$(max $? $RETURN)
                     fi
                     ;;
