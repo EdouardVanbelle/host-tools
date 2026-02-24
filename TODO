@@ -45,3 +45,4 @@ curl -6 https://ifconfig.me
 apt install nvme-cli
 nvme list
 nvme smart-log /dev/nvme0
+

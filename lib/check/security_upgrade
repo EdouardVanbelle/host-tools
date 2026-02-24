@@ -17,13 +17,33 @@ run() {
     fi
 
     local RETURN=$CHECK_SUCCESS
+    local UPDATE=1
 
-    apt-get update >$TMPDIR/security-update.list 2>&1
-    if grep -q '^[WE]:' $TMPDIR/security-update.list
+    test -e $SELFVARDIR || mkdir -p $SELFVARDIR
+    if [[ -e $SELFVARDIR/lastupdate ]]
     then
-        alert "got warning in apt-get update"
-        RETURN=$(max $? $RETURN)
-        cat $TMPDIR/security-update.list
+        local NOW=$(date '+%s')
+        local LASTUPDATE=$(stat --format='%Y' $SELFVARDIR/lastupdate)
+
+        if [[ $(( $NOW - $LASTUPDATE )) -le 3600 ]]
+        then
+            # no need to update
+            UPDATE=0
+            echo "recent check, no need to update database"
+        fi
+    fi
+
+    if [[ $UPDATE -eq 1 ]]
+    then
+        echo "updating database..."
+        touch $SELFVARDIR/lastupdate
+        apt-get update >$TMPDIR/security-update.list 2>&1
+        if grep -q '^[WE]:' $TMPDIR/security-update.list
+        then
+            alert "got warning in apt-get update"
+            RETURN=$(max $? $RETURN)
+            cat $TMPDIR/security-update.list
+        fi
     fi
 
     apt-get upgrade -s >$TMPDIR/security-upgrade.list 2>&1

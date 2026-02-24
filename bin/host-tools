@@ -650,6 +650,7 @@ _decorate_check() {
 
     MODULE="${_CHECK#check_}"
     CLASS="check"
+    SELFVARDIR="$VARDIR/$CLASS/$MODULE"
 
     # check is executed in a sub shell, module cannot alter variables
     ( $_CHECK ) \
