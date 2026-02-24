@@ -16,55 +16,66 @@ run() {
         return $CHECK_IGNORED
     fi
 
-    if ! which lsusb >/dev/null
-    then
-        # note: could also use dmesg
-        abort "lsusb not installedi (fix via: apt install usbutils)"
-        return $CHECK_IMPOSSIBLE
-    fi
-
-    if ! which lspci >/dev/null
-    then
-        # note: could also use dmesg
-        abort "lspci not installed (fix via: apt install pciutils)"
-        return $CHECK_IMPOSSIBLE
-    fi
-
     local RETURN=$CHECK_SUCCESS
     local DIFF
 
     local SELFVARDIR="$VARDIR/$CLASS/$MODULE"
     test -e $SELFVARDIR || mkdir -p $SELFVARDIR
 
-    if [ ! -e $SELFVARDIR/lspci ]
+    if [ ! -e /sys/bus/pci ]
     then
-        echo "INFO: storing lspci"
-        lspci | sort > $SELFVARDIR/lspci
+        echo "no PCI devices, ignoring this section"
     else
-        lspci | sort > $SELFVARDIR/lspci.latest
-        if DIFF="$(diff -u1 $SELFVARDIR/lspci $SELFVARDIR/lspci.latest | tail -n +3 | grep -e '^[+-]'; exit ${PIPESTATUS[0]})"
+
+        if ! which lspci >/dev/null
         then
-            echo "INFO: lspci unchanged"
+            # note: could also use dmesg
+            abort "lspci not installed (fix via: apt install pciutils)"
+            return $CHECK_IMPOSSIBLE
+        fi
+
+        if [ ! -e $SELFVARDIR/lspci ]
+        then
+            echo "INFO: storing lspci"
+            lspci | sort > $SELFVARDIR/lspci
         else
-            alert "PCI devices changed:"$'\n'"$DIFF"
-            RETURN=$(max $? $RETURN)
-            echo "remove $SELFVARDIR/lspci.latest extension to acknowledge"
+            lspci | sort > $SELFVARDIR/lspci.latest
+            if DIFF="$(diff -u1 $SELFVARDIR/lspci $SELFVARDIR/lspci.latest | tail -n +3 | grep -e '^[+-]'; exit ${PIPESTATUS[0]})"
+            then
+                echo "INFO: lspci unchanged"
+            else
+                alert "PCI devices changed:"$'\n'"$DIFF"
+                RETURN=$(max $? $RETURN)
+                echo "remove $SELFVARDIR/lspci.latest extension to acknowledge"
+            fi
         fi
     fi
 
-    if [ ! -e $SELFVARDIR/lsusb ]
+    if [ ! -e /sys/bus/usb ]
     then
-        echo "INFO: storing lsusb"
-        lspci | sort > $SELFVARDIR/lsusb
+        echo "no USB devices, ignoring this section"
     else
-        lspci | sort > $SELFVARDIR/lsusb.latest
-        if DIFF="$(diff -u1 $SELFVARDIR/lsusb $SELFVARDIR/lsusb.latest | tail -n +3 | grep -e '^[+-]'; exit ${PIPESTATUS[0]})"
+        if ! which lsusb >/dev/null
         then
-            echo "INFO: lsusb unchanged"
+            # note: could also use dmesg
+            abort "lsusb not installedi (fix via: apt install usbutils)"
+            return $CHECK_IMPOSSIBLE
+        fi
+
+        if [ ! -e $SELFVARDIR/lsusb ]
+        then
+            echo "INFO: storing lsusb"
+            lspci | sort > $SELFVARDIR/lsusb
         else
-            alert "USB devices changed:"$'\n'"$DIFF"
-            RETURN=$(max $? $RETURN)
-            echo "remove $SELFVARDIR/lsusb.latest extension to acknowledge"
+            lspci | sort > $SELFVARDIR/lsusb.latest
+            if DIFF="$(diff -u1 $SELFVARDIR/lsusb $SELFVARDIR/lsusb.latest | tail -n +3 | grep -e '^[+-]'; exit ${PIPESTATUS[0]})"
+            then
+                echo "INFO: lsusb unchanged"
+            else
+                alert "USB devices changed:"$'\n'"$DIFF"
+                RETURN=$(max $? $RETURN)
+                echo "remove $SELFVARDIR/lsusb.latest extension to acknowledge"
+            fi
         fi
     fi
 
