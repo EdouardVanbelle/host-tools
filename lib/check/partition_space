@@ -42,8 +42,6 @@ run() {
 
         CACHE="$SELFVARDIR/partition.$ESCAPED_NAME.remaining"
 
-        echo $CACHE
-
         if [ $PCENT -ge $DISKLIMIT ]
         then
             alert "$PARTITION reached size limit: $PCENT %"
