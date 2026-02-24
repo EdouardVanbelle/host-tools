@@ -22,7 +22,7 @@ run() {
     local SELFVARDIR="$VARDIR/$CLASS/$MODULE"
     test -e $SELFVARDIR || mkdir -p $SELFVARDIR
 
-    if [ ! -e /sys/bus/pci ]
+    if [ ! -e /sys/bus/pci ] && [ ! -e /sys/bus/pci_express ]
     then
         echo "no PCI devices, ignoring this section"
     else
