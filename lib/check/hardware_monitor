@@ -1,0 +1,66 @@
+#!/bin/bash
+
+DESCRIPTION="warn on hardware device change"
+
+init() {
+    true
+}
+
+run() {
+
+    explain "check hardware change"
+
+    if ! which lsusb >/dev/null
+    then
+        # note: could also use dmesg
+        abort "lsusb not installed [ignoring test]"
+        return $CHECK_IMPOSSIBLE
+    fi
+
+    if ! which lspci >/dev/null
+    then
+        # note: could also use dmesg
+        abort "lspci not installed [ignoring test]"
+        return $CHECK_IMPOSSIBLE
+    fi
+
+    local RETURN=$CHECK_SUCCESS
+    local DIFF
+
+    local SELFVARDIR="$VARDIR/$CLASS/$MODULE"
+    test -e $SELFVARDIR || mkdir -p $SELFVARDIR
+
+    if [ ! -e $SELFVARDIR/lspci ]
+    then
+        echo "INFO: storing lspci"
+        lspci | sort > $SELFVARDIR/lspci
+    else
+        lspci | sort > $SELFVARDIR/lspci.latest
+        if DIFF="$(diff -u1 $SELFVARDIR/lspci $SELFVARDIR/lspci.latest | tail -n +3 | grep -e '^[+-]'; exit ${PIPESTATUS[0]})"
+        then
+            echo "INFO: lspci unchanged"
+        else
+            alert "PCI devices changed:"$'\n'"$DIFF"
+            RETURN=$(max $? $RETURN)
+            echo "remove $SELFVARDIR/lspci.latest extension to acknowledge"
+        fi
+    fi
+
+    if [ ! -e $SELFVARDIR/lsusb ]
+    then
+        echo "INFO: storing lsusb"
+        lspci | sort > $SELFVARDIR/lsusb
+    else
+        lspci | sort > $SELFVARDIR/lsusb.latest
+        if DIFF="$(diff -u1 $SELFVARDIR/lsusb $SELFVARDIR/lsusb.latest | tail -n +3 | grep -e '^[+-]'; exit ${PIPESTATUS[0]})"
+        then
+            echo "INFO: lsusb unchanged"
+        else
+            alert "USB devices changed:"$'\n'"$DIFF"
+            RETURN=$(max $? $RETURN)
+            echo "remove $SELFVARDIR/lsusb.latest extension to acknowledge"
+        fi
+    fi
+
+    return $RETURN
+}
