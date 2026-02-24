@@ -65,9 +65,9 @@ run() {
         if [ ! -e $SELFVARDIR/lsusb ]
         then
             echo "INFO: storing lsusb"
-            lspci | sort > $SELFVARDIR/lsusb
+            lsusb | sort > $SELFVARDIR/lsusb
         else
-            lspci | sort > $SELFVARDIR/lsusb.latest
+            lsusb | sort > $SELFVARDIR/lsusb.latest
             if DIFF="$(diff -u1 $SELFVARDIR/lsusb $SELFVARDIR/lsusb.latest | tail -n +3 | grep -e '^[+-]'; exit ${PIPESTATUS[0]})"
             then
                 echo "INFO: lsusb unchanged"
