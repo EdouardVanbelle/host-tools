@@ -10,17 +10,23 @@ run() {
 
     explain "check hardware change"
 
+    if detect_virt
+    then
+        abort "this is a virtual machine, test is not relevant [ignoring test]"
+        return $CHECK_IGNORED
+    fi
+
     if ! which lsusb >/dev/null
     then
         # note: could also use dmesg
-        abort "lsusb not installed [ignoring test]"
+        abort "lsusb not installedi (fix via: apt install usbutils)"
         return $CHECK_IMPOSSIBLE
     fi
 
     if ! which lspci >/dev/null
     then
         # note: could also use dmesg
-        abort "lspci not installed [ignoring test]"
+        abort "lspci not installed (fix via: apt install pciutils)"
         return $CHECK_IMPOSSIBLE
     fi
 
