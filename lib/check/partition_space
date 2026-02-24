@@ -22,7 +22,7 @@ run() {
 
     local NOW=$(date +'%s')
 
-    test -d "$VARDIR/cache" || mkdir "$VARDIR/cache"
+    test -e $SELFVARDIR || mkdir -p $SELFVARDIR
 
     # AVAIL in kB
     local SOURCE PARTITION FSTYPE AVAIL IPCENT PCENT
@@ -40,7 +40,9 @@ run() {
         # TODO: write name
         ESCAPED_NAME=$(urlencode $PARTITION)
 
-        CACHE="$VARDIR/cache/partition.$ESCAPED_NAME.remaining"
+        CACHE="$SELFVARDIR/partition.$ESCAPED_NAME.remaining"
+
+        echo $CACHE
 
         if [ $PCENT -ge $DISKLIMIT ]
         then
@@ -121,7 +123,7 @@ run() {
     done < <( df -l --exclude-type="devtmpfs" --exclude-type="tmpfs" --exclude-type="overlay" --output="source,target,fstype,avail,ipcent,pcent" | tail -n +2 )
 
     # remove old cache values
-    find "$VARDIR/cache" -name 'partition.*.remaining.*' -ctime +$PARTITION_SPACE_CACHE_TIMEOUT -delete
+    find "$SELFVARDIR" -name 'partition.*.remaining.*' -ctime +$PARTITION_SPACE_CACHE_TIMEOUT -delete
 
     return $RETURN
 }
