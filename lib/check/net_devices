@@ -47,22 +47,30 @@ run() {
         local TX_ERROR=$(cat $DEVICE/statistics/tx_errors)
         local RX_ERROR=$(cat $DEVICE/statistics/rx_errors)
         local COLLISION=$(cat $DEVICE/statistics/collisions)
+        local CARRIER_DOWN_COUNT=$(cat $DEVICE/carrier_down_count)
 
-       # volatile_cache KEY TTL_IN_H DEFAULT_VALUE CURRENT_VALUE
-       local PREV_TX_ERROR=$(volatile_cache "net:${DEVICE}:tx_error" 24 0 $TX_ERROR)
-       local PREV_RX_ERROR=$(volatile_cache "net:${DEVICE}:rx_error" 24 0 $RX_ERROR)
-       local PREV_COLLISION=$(volatile_cache "net:${DEVICE}:collision" 24 0 $COLLISION)
+        # remove first plug
+        CARRIER_DOWN_COUNT=$(( $CARRIER_DOWN_COUNT - 1 ))
+
+        # note: rx_dropped is not relevant, prefer check rx_missed_errors
+
+        # volatile_cache KEY TTL_IN_H DEFAULT_VALUE CURRENT_VALUE
+        local PREV_TX_ERROR=$(volatile_cache "net:${DEVICE}:tx_error" 24 0 $TX_ERROR)
+        local PREV_RX_ERROR=$(volatile_cache "net:${DEVICE}:rx_error" 24 0 $RX_ERROR)
+        local PREV_COLLISION=$(volatile_cache "net:${DEVICE}:collision" 24 0 $COLLISION)
+        local PREV_CARRIER_DOWN_COUNT=$(volatile_cache "net:${DEVICE}:carrier_down_count" 24 0 $CARRIER_DOWN_COUNT)
 
         if [ \
             \( $TX_ERROR -gt $PREV_TX_ERROR \) -o \
             \( $RX_ERROR -gt $PREV_RX_ERROR \) -o \
-            \( $COLLISION -gt $PREV_COLLISION \) \
+            \( $COLLISION -gt $PREV_COLLISION \) -o \
+            \( $CARRIER_DOWN_COUNT -gt $PREV_CARRIER_DOWN_COUNT \) \
         ]
         then
-            alert "device $DEVICE has communication errors ($TX_ERROR TX err, $RX_ERROR RX err, $COLLISION collisions)"
+            alert "device $DEVICE has communication errors ($TX_ERROR TX err, $RX_ERROR RX err, $COLLISION collisions, $CARRIER_DOWN_COUNT carrier down count)"
             RETURN=$(max $? $RETURN)
         else
-            echo "device $DEVICE is in good health: no new error ($TX_ERROR Tx err, $RX_ERROR RX err, $COLLISION collisions)"
+            echo "device $DEVICE is in good health: no new error ($TX_ERROR Tx err, $RX_ERROR RX err, $COLLISION collisions, $CARRIER_DOWN_COUNT carrier down count)"
         fi
 
     done
