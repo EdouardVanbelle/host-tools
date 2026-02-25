@@ -33,9 +33,21 @@ run() {
         # FIXME: should check phydev ?
         test -e $DEVICE/device || continue
 
-        explain "checking physical device $DEVICE"
+        echo
 
+        explain "checking physical device $DEVICE"
         local IS_UP=$(cat $DEVICE/carrier 2>/dev/null)
+
+        local CARRIER_DOWN_COUNT=$(cat $DEVICE/carrier_down_count)
+        local PREV_CARRIER_DOWN_COUNT=$(volatile_cache "net:${DEVICE}:carrier_down_count" 24 0 $CARRIER_DOWN_COUNT)
+
+        # remove first plug
+        CARRIER_DOWN_COUNT=$(( $CARRIER_DOWN_COUNT - 1 ))
+
+        if [ $CARRIER_DOWN_COUNT -gt $PREV_CARRIER_DOWN_COUNT ]
+        then
+            alert "device $DEVICE has $CARRIER_DOWN_COUNT carrier down count (disconnection)"
+        fi
 
         if [ "$IS_UP" != "1" ]
         then
@@ -44,13 +56,19 @@ run() {
             continue
         fi
 
+        if [ -e $DEVICE/wireless ]
+        then
+            echo "checking physical device $DEVICE (wireless)"
+        else
+            local DUPLEX=$(cat $DEVICE/duplex)
+            local SPEED=$(cat $DEVICE/speed)
+            echo "physical device $DEVICE is connected at $SPEED Mbps in $DUPLEX duplex"
+            # TODO: alarm if speed decrease, or duplex become half
+        fi
+
         local TX_ERROR=$(cat $DEVICE/statistics/tx_errors)
         local RX_ERROR=$(cat $DEVICE/statistics/rx_errors)
         local COLLISION=$(cat $DEVICE/statistics/collisions)
-        local CARRIER_DOWN_COUNT=$(cat $DEVICE/carrier_down_count)
-
-        # remove first plug
-        CARRIER_DOWN_COUNT=$(( $CARRIER_DOWN_COUNT - 1 ))
 
         # note: rx_dropped is not relevant, prefer check rx_missed_errors
 
@@ -58,22 +76,22 @@ run() {
         local PREV_TX_ERROR=$(volatile_cache "net:${DEVICE}:tx_error" 24 0 $TX_ERROR)
         local PREV_RX_ERROR=$(volatile_cache "net:${DEVICE}:rx_error" 24 0 $RX_ERROR)
         local PREV_COLLISION=$(volatile_cache "net:${DEVICE}:collision" 24 0 $COLLISION)
-        local PREV_CARRIER_DOWN_COUNT=$(volatile_cache "net:${DEVICE}:carrier_down_count" 24 0 $CARRIER_DOWN_COUNT)
 
         if [ \
             \( $TX_ERROR -gt $PREV_TX_ERROR \) -o \
             \( $RX_ERROR -gt $PREV_RX_ERROR \) -o \
-            \( $COLLISION -gt $PREV_COLLISION \) -o \
-            \( $CARRIER_DOWN_COUNT -gt $PREV_CARRIER_DOWN_COUNT \) \
+            \( $COLLISION -gt $PREV_COLLISION \)  \
         ]
         then
-            alert "device $DEVICE has communication errors ($TX_ERROR TX err, $RX_ERROR RX err, $COLLISION collisions, $CARRIER_DOWN_COUNT carrier down count)"
+            alert "device $DEVICE has communication errors ($TX_ERROR TX err, $RX_ERROR RX err, $COLLISION collisions)"
             RETURN=$(max $? $RETURN)
         else
-            echo "device $DEVICE is in good health: no new error ($TX_ERROR Tx err, $RX_ERROR RX err, $COLLISION collisions, $CARRIER_DOWN_COUNT carrier down count)"
+            echo "device $DEVICE is in good health: no new error ($TX_ERROR Tx err, $RX_ERROR RX err, $COLLISION collisions)"
         fi
 
     done
+
+    echo
 
     cd $current
 
