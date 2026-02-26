@@ -47,6 +47,7 @@ run() {
         if [ $CARRIER_DOWN_COUNT -gt $PREV_CARRIER_DOWN_COUNT ]
         then
             alert "device $DEVICE has $CARRIER_DOWN_COUNT carrier down count (disconnection)"
+            RETURN=$(max $? $RETURN)
         fi
 
         if [ "$IS_UP" != "1" ]
