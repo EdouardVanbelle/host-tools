@@ -1,0 +1,36 @@
+#!/bin/bash
+
+DESCRIPTION="check kernel warn / oops"
+
+init() {
+    return 0
+}
+
+run() {
+    echo checking kernel warn / oops
+
+    local RETURN=$CHECK_SUCCESS
+
+    local KERNEL_WARN_COUNT=$(cat /sys/kernel/warn_count)
+    local PREV_KERNEL_WARN_COUNT=$(volatile_cache "kernel:warn_count" 24 0 $KERNEL_WARN_COUNT)
+
+    if [ $KERNEL_WARN_COUNT -gt $PREV_KERNEL_WARN_COUNT ]
+    then
+        alert "kernel got $KERNEL_WARN_COUNT new warning"
+        RETURN=$(max $? $RETURN)
+    fi
+
+    local KERNEL_OOPS_COUNT=$(cat /sys/kernel/oops_count)
+    local PREV_KERNEL_OOPS_COUNT=$(volatile_cache "kernel:oops_count" 24 0 $KERNEL_OOPS_COUNT)
+
+    if [ $KERNEL_OOPS_COUNT -gt $PREV_KERNEL_OOPS_COUNT ]
+    then
+        alert "kernel got $KERNEL_OOPS_COUNT new oopsing"
+        RETURN=$(max $? $RETURN)
+    fi
+
+    cd $current
+
+    return $RETURN
+}
+
