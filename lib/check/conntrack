@@ -14,6 +14,12 @@ run() {
 
     local RETURN=$CHECK_SUCCESS
 
+    if [ ! -e /proc/sys/net/netfilter ]
+    then
+        abort "/proc/sys/net/netfilter not found, conntrack may not be loaded"
+        return $CHECK_IGNORED
+    fi
+
     local CONNTRACK_MAX=$(cat /proc/sys/net/netfilter/nf_conntrack_max)
     local CONNTRACK_COUNT=$(cat /proc/sys/net/netfilter/nf_conntrack_count)
 
@@ -29,10 +35,17 @@ run() {
     fi
 
     # check drops
+    # XXX: /proc interface will be deprecated, better to use `conntrack` binary to query netlink API
+    # command to use: conntrack --stats (requires apt install conntrack)
+    if [ ! -e /proc/net/stat/nf_conntrack ]
+    then
+        abort "/proc/net/stat/nf_conntrack not found [check impossible]"
+        return $CHECK_IMPOSSIBLE
+    fi
 
     local entries  clashres found new invalid ignore delete chainlength insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete search_restart
     LINE=0
-    local LINE TOTAL_EARLY_DROP
+    local LINE TOTAL_EARLY_DROP PREV_TOTAL_EARLY_DROP
     TOTAL_EARLY_DROP=0
 
     while read -r entries clashres found new invalid ignore delete chainlength insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete search_restart
@@ -44,12 +57,20 @@ run() {
         TOTAL_EARLY_DROP=$((16#$early_drop + $TOTAL_EARLY_DROP))
     done < <(cat /proc/net/stat/nf_conntrack)
 
-    # TODO use a non persistant cache to remove alert once acknowledge
-    if [[ $TOTAL_EARLY_DROP -eq 0 ]]
+    TOTAL_EARLY_DROP=123
+
+    PREV_TOTAL_EARLY_DROP=0
+    if [ -e $HT_RUNDIR/conntrack_drop ]
     then
-        echo no conntrack drop
+        echo "using previous counter $HT_RUNDIR/conntrack_drop"
+        PREV_TOTAL_EARLY_DROP=$(cat $HT_RUNDIR/conntrack_drop)
+    fi
+
+    if [[ $TOTAL_EARLY_DROP -eq $PREV_TOTAL_EARLY_DROP ]]
+    then
+        echo "no new conntrack drop (last value: $PREV_TOTAL_EARLY_DROP)"
     else
-        alert "found conntrack drop due to table full: $TOTAL_EARLY_DROP"
+        alert "found $(( $TOTAL_EARLY_DROP - $PREV_TOTAL_EARLY_DROP )) new conntrack drops due to table full, remove alert setting $TOTAL_EARLY_DROP in $HT_RUNDIR/conntrack_drop"
         RETURN=$(max $? $RETURN)
     fi
 
