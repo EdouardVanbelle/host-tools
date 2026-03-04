@@ -34,28 +34,40 @@ run() {
         RETURN=$(max $? $RETURN)
     fi
 
-    # check drops
-    # XXX: /proc interface will be deprecated, better to use `conntrack` binary to query netlink API
-    # command to use: conntrack --stats (requires apt install conntrack)
-    if [ ! -e /proc/net/stat/nf_conntrack ]
-    then
-        abort "/proc/net/stat/nf_conntrack not found [conntrack drop count impossible]"
-        return $RETURN
-    fi
-
-    local entries  clashres found new invalid ignore delete chainlength insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete search_restart
-    LINE=0
     local LINE TOTAL_EARLY_DROP PREV_TOTAL_EARLY_DROP
     TOTAL_EARLY_DROP=0
+    LINE=0
 
-    while read -r entries clashres found new invalid ignore delete chainlength insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete search_restart
-    do
-        LINE=$(($LINE+1))
-        # ignore first line
-        [[ $LINE -eq 1 ]] && continue
-        # values are in hexa
-        TOTAL_EARLY_DROP=$((16#$early_drop + $TOTAL_EARLY_DROP))
-    done < <(cat /proc/net/stat/nf_conntrack)
+    if [ -e /proc/net/stat/nf_conntrack ]
+    then
+        # this part may be deprecated in the future, replaced with conntrack binary
+	echo "using /proc/net/stat/nf_conntrack"
+
+        local entries clashres found new invalid ignore delete chainlength insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete search_restart
+        while read -r entries clashres found new invalid ignore delete chainlength insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete search_restart
+        do
+            LINE=$(($LINE+1))
+            # ignore first line
+            [[ $LINE -eq 1 ]] && continue
+            # values are in hexa
+            TOTAL_EARLY_DROP=$((16#$early_drop + $TOTAL_EARLY_DROP))
+        done < <(cat /proc/net/stat/nf_conntrack)
+
+    elif which conntrack >/dev/null 2>/dev/null
+    then
+	echo "using conntrack binary"
+
+	local cpu found invalid insert insert_failed drop early_drop error search_restart clash_resolve chaintoolong
+	while read -r cpu found invalid insert insert_failed drop early_drop error search_restart clash_resolve chaintoolong
+	do
+	    # keep only numerical value
+	    TOTAL_EARLY_DROP=$(( ${early_drop#*=} + $TOTAL_EARLY_DROP))
+	done < <(conntrack --stats)
+
+    else
+	warn "/proc/net/stat/nf_conntrack is not available and conntrack (apt install conntrack) is not found [conntrack drop count impossible]"
+	return $(max $? $RETURN)
+    fi
 
     PREV_TOTAL_EARLY_DROP=0
     if [ -e $HT_RUNDIR/conntrack_drop ]
