@@ -39,8 +39,8 @@ run() {
     # command to use: conntrack --stats (requires apt install conntrack)
     if [ ! -e /proc/net/stat/nf_conntrack ]
     then
-        abort "/proc/net/stat/nf_conntrack not found [check impossible]"
-        return $CHECK_IMPOSSIBLE
+        abort "/proc/net/stat/nf_conntrack not found [conntrack drop count impossible]"
+        return $RETURN
     fi
 
     local entries  clashres found new invalid ignore delete chainlength insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete search_restart
