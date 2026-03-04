@@ -14,9 +14,9 @@ run() {
 
     local RETURN=$CHECK_SUCCESS
 
-    if [ ! -e /proc/sys/net/netfilter ]
+    if [ ! -e /proc/sys/net/netfilter/nf_conntrack_max ] || [ ! -e /proc/sys/net/netfilter/nf_conntrack_count ]
     then
-        abort "/proc/sys/net/netfilter not found, conntrack may not be loaded"
+        abort "/proc/sys/net/netfilter/nf_conntrack_{count,max} not found, conntrack may not be loaded"
         return $CHECK_IGNORED
     fi
 
