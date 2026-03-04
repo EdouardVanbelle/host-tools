@@ -1,0 +1,57 @@
+#!/bin/bash
+
+DESCRIPTION="check conntrack table"
+
+init() {
+    # permit up to 95% of usage
+    CONNTRACK_WARNING_RATIO=95
+    true
+}
+
+run() {
+
+    explain "checking conntrack table"
+
+    local RETURN=$CHECK_SUCCESS
+
+    local CONNTRACK_MAX=$(cat /proc/sys/net/netfilter/nf_conntrack_max)
+    local CONNTRACK_COUNT=$(cat /proc/sys/net/netfilter/nf_conntrack_count)
+
+    local RATIO=$(( $CONNTRACK_COUNT * 100 / $CONNTRACK_MAX ))
+
+    echo "conntrack usage $CONNTRACK_COUNT, max: $CONNTRACK_MAX, ratio: $RATIO%"
+
+    if [[ $RATIO -gt $CONNTRACK_WARNING_RATIO ]]
+    then
+        # note: could also use dmesg
+        alert "conntrack table is over limit: usage $CONNTRACK_COUNT, max: $CONNTRACK_MAX, ratio: $RATIO%"
+        RETURN=$(max $? $RETURN)
+    fi
+
+    # check drops
+
+    local entries  clashres found new invalid ignore delete chainlength insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete search_restart
+    LINE=0
+    local LINE TOTAL_EARLY_DROP
+    TOTAL_EARLY_DROP=0
+
+    while read -r entries clashres found new invalid ignore delete chainlength insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete search_restart
+    do
+        LINE=$(($LINE+1))
+        # ignore first line
+        [[ $LINE -eq 1 ]] && continue
+        # values are in hexa
+        TOTAL_EARLY_DROP=$((16#$early_drop + $TOTAL_EARLY_DROP))
+    done < <(cat /proc/net/stat/nf_conntrack)
+
+    # TODO use a non persistant cache to remove alert once acknowledge
+    if [[ $TOTAL_EARLY_DROP -eq 0 ]]
+    then
+        echo no conntrack drop
+    else
+        alert "found conntrack drop due to table full: $TOTAL_EARLY_DROP"
+        RETURN=$(max $? $RETURN)
+    fi
+
+    return $RETURN
+}
