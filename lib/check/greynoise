@@ -34,7 +34,7 @@ run() {
 
     # TODO: use a cache, 1req / day is enougth
     local CHECK=$(curl -s -H "Accept: application/json" "https://check.labs.greynoise.io/" 2>&1 | jq -r 2>&1)
-    if [[ $? -ne 0 ]]
+    if [[ ${PIPESTATUS[0]} -ne 0 ]]
     then
         warn "curl to check.labs.greynoise.io failed: $CHECK"
         return $CHECK_WARNING
