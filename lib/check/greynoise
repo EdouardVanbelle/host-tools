@@ -32,12 +32,35 @@ run() {
     #   "error": "ip not found"
     # }
 
-    # TODO: use a cache, 1req / day is enougth
-    local CHECK=$(curl -s -H "Accept: application/json" "https://check.labs.greynoise.io/" 2>&1 | jq -r 2>&1)
-    if [[ ${PIPESTATUS[0]} -ne 0 ]]
+    test -e $SELFVARDIR || mkdir -p $SELFVARDIR
+
+    local NOW LASTUPDATE CHECK
+    local CACHE="$SELFVARDIR/last"
+
+    if [[ -e "$CACHE" ]]
     then
-        warn "curl to check.labs.greynoise.io failed: $CHECK"
-        return $CHECK_WARNING
+        NOW=$(date '+%s')
+        LASTUPDATE=$(stat --format='%Y' "$CACHE")
+        if [[ $(( $NOW - $LASTUPDATE )) -gt $(( 3600 * 24 )) ]]
+        then
+            # purge deprecated cache
+            rm -f "$CACHE"
+        fi
+    fi
+
+    if [[ -e "$CACHE" ]]
+    then
+        echo "using cache file $CACHE"
+        CHECK="$(cat $CACHE)"
+    else
+        echo "querying greynoise.io..."
+        CHECK=$(curl -s -H "Accept: application/json" "https://check.labs.greynoise.io/" 2>&1 | jq -r 2>&1)
+        if [[ ${PIPESTATUS[0]} -ne 0 ]]
+        then
+            warn "curl to check.labs.greynoise.io failed: $CHECK"
+            return $CHECK_WARNING
+        fi
+        echo "$CHECK" > "$CACHE"
     fi
 
     local NOISE=$(jq -r .noise <<<$CHECK)
