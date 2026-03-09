@@ -1,0 +1,108 @@
+#!/bin/bash
+
+DESCRIPTION="check btrfs scrubing"
+
+init() {
+    # in days
+    SCRUB_FREQUENCY=30
+    true
+}
+
+run() {
+
+    explain "checking btrfs scrubing"
+
+    local RETURN=$CHECK_SUCCESS
+
+    if ! grep -q btrfs /proc/mounts
+    then
+        abort "no btrfs mounted, ignoring test"
+        return $CHECK_IGNORED
+    fi
+
+    if ! which btrfs >/dev/null 2>/dev/null
+    then
+        warn "btrfs binary not found, please apt install btrfs-progs"
+        return $CHECK_IMPOSSIBLE
+    fi
+
+    local PARTITION UUID BY_UUID BTRFS_REPORT STATUS RETURN_CODE SCRUB_STATUS SCRUB_TIMESTAMP ELAPSED_SCRUB_TEST SUMMARY
+
+    for PARTITION in $(grep btrfs /proc/mounts | awk '{print $1}' | sort | uniq)
+    do
+
+        UUID=""
+
+        for BY_UUID in /dev/disk/by-uuid/*
+        do
+            if [[ $(readlink -f $BY_UUID) = $PARTITION ]]
+            then
+                UUID=${BY_UUID##*/}
+                break
+            fi
+        done
+
+        if [[ -z "$UUID" ]]
+        then
+            warn "unable to find UUID of $PARTITION"
+            RETURN=$(max $RETURN $?)
+            continue
+        fi
+
+        echo
+        echo "checking $PARTITION (UUID $UUID)"
+
+        SCRUB_STATUS="/var/lib/btrfs/scrub.status.$UUID"
+
+        if [[ ! -e $SCRUB_STATUS ]]
+        then
+            warn "partition $PARTITION (UUID $UUID) has not been tested, please run a 'btrfs scrub start $PARTITION'"
+            RETURN=$(max $RETURN $?)
+            continue
+        fi
+
+        SCRUB_TIMESTAMP=$(stat --format='%Y' $SCRUB_STATUS)
+        NOW=$(date '+%s')
+
+        ELAPSED_SCRUB_TEST=$(( ( $NOW - $SCRUB_TIMESTAMP ) / ( 3600 * 24) ))
+
+        echo "last scrub executed $ELAPSED_SCRUB_TEST days ago"
+
+        if [[ $ELAPSED_SCRUB_TEST -gt $SCRUB_FREQUENCY ]]
+        then
+            warn "partition $PARTITION (UUID $UUID) is too old ($ELAPSED_SCRUB_TEST, please run a 'btrfs scrub start $PARTITION')"
+            RETURN=$(max $RETURN $?)
+            continue
+        fi
+
+        BTRFS_REPORT="$(btrfs scrub status $PARTITION)"
+        RETURN_CODE=$?
+
+        STATUS=$(grep Status: <<<"$BTRFS_REPORT" | sed 's/^Status: \+//')
+        SUMMARY=$(grep Status: <<<"$BTRFS_REPORT" | sed 's/^Error summary: \+//')
+
+        if [[ $RETURN_CODE != 0 ]]
+        then
+            alert "Found issue with scrub check on $PARTITION: $SUMMARY"
+            RETURN=$(max $RETURN $?)
+            continue
+        fi
+
+        case "$STATUS" in
+            "finished")
+                echo "Scrub is terminated on $PARTITION, data integrity is clean"
+                ;;
+            "running")
+                echo "Scrub is running on $PARTITION..."
+                ;;
+            *)
+                warn "Scrub status $STATUS is unkonwn on$PARTITION"
+                RETURN=$(max $RETURN $?)
+                ;;
+        esac
+
+    done
+
+    return $RETURN
+
+}
