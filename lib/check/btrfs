@@ -31,6 +31,8 @@ run() {
     for PARTITION in $(grep btrfs /proc/mounts | awk '{print $1}' | sort | uniq)
     do
 
+        PARTITION=$(readlink -f "$PARTITION")
+
         UUID=""
 
         for BY_UUID in /dev/disk/by-uuid/*
