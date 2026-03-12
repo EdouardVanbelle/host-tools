@@ -110,6 +110,7 @@ run() {
                 if [ $TIME_LEFT -le $TIME_LIMIT ]
                 then
                     alert "$PARTITION will be full in $(min_to_human_display $TIME_LEFT 1) which is less than the allowed time ($(min_to_human_display $TIME_LIMIT)), current disk usage: $PCENT %"
+                    RETURN=$(max $? $RETURN)
                 fi
             else
                 echo "space is growing"
