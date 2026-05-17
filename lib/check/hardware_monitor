@@ -46,7 +46,7 @@ run() {
             else
                 alert "PCI devices changed:"$'\n'"$DIFF"
                 RETURN=$(max $? $RETURN)
-                echo "remove $SELFVARDIR/lspci.latest extension to acknowledge"
+                echo "remove $SELFVARDIR/lspci extension to acknowledge"
             fi
         fi
     fi
@@ -74,7 +74,7 @@ run() {
             else
                 alert "USB devices changed:"$'\n'"$DIFF"
                 RETURN=$(max $? $RETURN)
-                echo "remove $SELFVARDIR/lsusb.latest extension to acknowledge"
+                echo "remove $SELFVARDIR/lsusb extension to acknowledge"
             fi
         fi
     fi
