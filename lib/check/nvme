@@ -48,7 +48,7 @@ run() {
         local SELFVARDIR="$VARDIR/$CLASS/$MODULE/$DISK"
         test -e $SELFVARDIR || mkdir -p $SELFVARDIR
 
-	    explain "checking nvme disk $SHORT"
+        explain "checking nvme disk $SHORT"
 
         # get uniq WWN - World Wide Name (EUI for nvme disks)
         # note: ID_SERIAL works too, WWN is recommanded
@@ -88,15 +88,28 @@ run() {
             fi
         fi
 
-	    CRITICAL=$(nvme smart-log /dev/$DISK -o json | jq -r .critical_warning)
+        SMART_LOG="$(nvme smart-log /dev/$DISK -o json)"
 
+        SPARE_THRESHOLD=30
+
+        # check how many spare cells remains available
+        AVAIL_SPARE=$(jq -r .avail_spare <<<"$SMART_LOG")
+        if [[ $AVAIL_SPARE -lt $SPARE_THRESHOLD ]]
+        then
+            $do_alert "$SHORT has $AVAIL_SPARE% remaining spare calls available (less then $SPARE_THRESHOLD)";
+        else
+            echo "$SHORT has $AVAIL_SPARE% available spare cells"
+        fi
+
+        # check any warning
+        CRITICAL=$(jq -r .critical_warning <<<"$SMART_LOG")
         if [[ $CRITICAL -gt 0 ]]
         then
             $do_alert "$SHORT has critical warnings";
             RETURN=$(max $? $RETURN)
             nvme smart-log /dev/$DISK
         else
-            echo "$SHORT is clean"
+            echo "$SHORT has no critical warning"
         fi
 
         echo
