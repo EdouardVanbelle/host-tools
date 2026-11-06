@@ -1,0 +1,86 @@
+#!/bin/bash
+
+DESCRIPTION="check firmware"
+
+init() {
+    true
+}
+
+run() {
+
+    if detect_virt
+    then
+        abort "this is a virtual machine, test is not relevant [ignoring test]"
+        return $CHECK_IGNORED
+    fi
+
+    if ! which fwupdmgr >/dev/null
+    then
+        if [ -d /sys/firmware/efi ]
+        then
+            abort "EFI boot = recent hardware, please install fwupd"
+            return $CHECK_WARNING
+        else
+            abort "fwudmgr not installed (fix: apt-get install fwupd) [ignoring test]"
+            return $CHECK_IMPOSSIBLE
+        fi
+    fi
+
+    if ! which jq >/dev/null
+    then
+        abort "jq not installed (fix: apt-get install jq) [ignoring test]"
+        return $CHECK_IMPOSSIBLE
+    fi
+
+    local RETURN=$CHECK_SUCCESS
+
+    local COUNT
+    local FWRET
+
+    COUNT=$(fwupdmgr get-devices --json 2>/dev/null | jq '[.Devices[]? | select(.Flags | index("updatable"))] | length')
+
+    if [[ "${COUNT:-0}" -eq 0 ]]
+    then
+        echo "Nothing fwupd can update here"
+        return $CHECK_IGNORED
+    fi
+
+    fwupdmgr refresh >/dev/null 2>/dev/null
+    FWRET=$?
+    case $FWRET in
+    0)
+        echo "fwupdmgr refreshed"
+        ;;
+    2)
+        # no update required
+        ;;
+    *)
+        alert "failed to refresh fwupdmgr"
+        RETURN=$(max $? $RETURN)
+        return $RETURN
+        ;;
+    esac
+
+    local UPDATES REAL
+    UPDATES=$(fwupdmgr get-updates --json 2>/dev/null)
+    FWRET=$?
+    if [[ $FWRET -ne 0 ]]
+    then
+         alert "fwupdmgr error: $UPDATES"
+         RETURN=$(max $? $RETURN)
+    fi
+
+    if [[ "$(jq '.Devices | length' <<<"$UPDATES")" -eq 0 ]]
+    then
+         echo "No update"
+    else
+         REAL="$(jq -r '.Devices[]? | "\(.Name): \(.Version) → \(.Releases[0].Version)"' <<<"$UPDATES")"
+         alert "Update availables: $REAL"
+         RETURN=$(max $? $RETURN)
+    fi
+
+
+    return $RETURN
+
+}
+
