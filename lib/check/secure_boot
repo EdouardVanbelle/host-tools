@@ -1,0 +1,39 @@
+#!/bin/bash
+
+DESCRIPTION="check firmware"
+
+init() {
+    true
+}
+
+run() {
+
+    if detect_virt
+    then
+        abort "this is a virtual machine, test is not relevant [ignoring test]"
+        return $CHECK_IGNORED
+    fi
+
+    if ! [ -d /sys/firmware/efi ]
+    then
+        abort "No EFI boot, ignoring"
+        return $CHECK_IGNORED
+    fi
+
+    local RESPONSE
+    RESPONSE=$(mokutil --sb-state)
+
+    local RETURN=$CHECK_SUCCESS
+
+    if [[ "$RESPONSE" = "SecureBoot enabled" ]]
+    then
+        echo "Secure boot enabled"
+    else
+        alert "Secure boot is not enabled: $RESPONSE"
+        RETURN=$(max $? $RETURN)
+    fi
+
+    return $RETURN
+
+}
+
